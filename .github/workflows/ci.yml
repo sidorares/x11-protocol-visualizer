@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # The proxy and decoder — everything the tests touch — have no runtime
+      # dependencies. The react-x11 UI stack is optional and installs from
+      # GitHub, so it is skipped here: CI has no X server to render into, and
+      # omitting it keeps the run fast and independent of those repositories.
+      - name: Install
+        run: npm ci --omit=optional
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  generator:
+    name: protocol generator still runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+      - run: npm ci --omit=optional
+
+      # `src/core/protocol/generated.ts` is generated from the xcbproto XML
+      # corpus and committed, so the decoder works without xcbproto installed.
+      # This job checks the generator still parses a real corpus — it does NOT
+      # diff against the committed file: distributions ship different xcbproto
+      # versions, so a diff would fail for reasons unrelated to the change.
+      - name: Install xcbproto
+        run: sudo apt-get update && sudo apt-get install -y xcb-proto
+
+      - name: Run the generator
+        run: npm run gen:protocol -- /usr/share/xcb
+
+      - name: Sanity-check the output
+        run: npm run check:generated
