@@ -563,16 +563,30 @@ function FilterBar(props: {
   const chip = (key: string, label: string, color: string, onRemove: () => void) => (
     <Pill key={key} label={label} color={color} onRemove={onRemove} />
   );
+  // `alignItems: 'flex-start'` so the icon and the button stay level with the
+  // *first* row of pills once the middle wraps to several.
   return (
-    <box style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4, backgroundColor: C.panelAlt, borderColor: C.border, borderWidth: 1 }}>
-      <Icon name="filter" size={12} color={C.dim} />
-      {props.solo && chip('solo', `solo: ${props.solo}`, C.hot, props.onClearSolo)}
-      {[...props.mutedCats].map((c) => chip(`c-${c}`, `hide ${c}`, catColor(c), () => props.onToggleCat(c)))}
-      {[...props.mutedNames].map((n) => chip(`n-${n}`, `hide ${n}`, C.text, () => props.onToggleName(n)))}
-      {props.query && chip('q', `“${props.query}”`, C.text, props.onClearQuery)}
-      {props.xidFilter != null &&
-        chip('xid', `uses 0x${props.xidFilter.toString(16).padStart(8, '0')}`, C.link, props.onClearXid)}
-      <box style={{ flexGrow: 1 }} />
+    <box style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4, backgroundColor: C.panelAlt, borderColor: C.border, borderWidth: 1 }}>
+      <box style={{ height: T.controlSm, justifyContent: 'center' }}>
+        <Icon name="filter" size={12} color={C.dim} />
+      </box>
+      {/*
+        The pills wrap. Hiding a dozen event types is ordinary use — it is how
+        you get from "everything" to the two requests you care about — and on a
+        single non-wrapping row every pill past the right edge became
+        *unreachable*: a pill's ✕ is the only way to lift that filter, there is
+        no horizontal scroll here, and the row silently clipped. Wrapping costs
+        table height, which is the right trade against a filter you cannot
+        remove.
+      */}
+      <box style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, columnGap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
+        {props.solo && chip('solo', `solo: ${props.solo}`, C.hot, props.onClearSolo)}
+        {[...props.mutedCats].map((c) => chip(`c-${c}`, `hide ${c}`, catColor(c), () => props.onToggleCat(c)))}
+        {[...props.mutedNames].map((n) => chip(`n-${n}`, `hide ${n}`, C.text, () => props.onToggleName(n)))}
+        {props.query && chip('q', `“${props.query}”`, C.text, props.onClearQuery)}
+        {props.xidFilter != null &&
+          chip('xid', `uses 0x${props.xidFilter.toString(16).padStart(8, '0')}`, C.link, props.onClearXid)}
+      </box>
       <Button label="Clear all" icon="filter-x" variant="ghost" accent={C.link} small onClick={props.onClearAll} />
     </box>
   );
