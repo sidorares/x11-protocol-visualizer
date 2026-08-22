@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json",
     "gen:protocol": "tsx scripts/gen-protocol.ts",
-    "check:generated": "tsx scripts/check-generated.ts"
+    "check:generated": "tsx scripts/check-generated.ts",
+    "screenshot": "tsx scripts/screenshot.tsx"
   },
   "keywords": [
     "x11",

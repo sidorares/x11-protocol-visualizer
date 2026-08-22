@@ -116,10 +116,9 @@ src/cli.ts                entry: proxy + UI-or-headless
   connections.
 - Drive traffic through the proxy with `DISPLAY=127.0.0.1:1 <client>`
   (`xdpyinfo`, `xprop`, `xlogo`, or a react-x11 app).
-- **Screenshotting the UI:** `screencapture` cannot see XQuartz windows. Use
-  `xwd -id <win> -out f.xwd`, then the XWD→PPM converter in the session
-  scratchpad, then `magick` to PNG. Find the window with
-  `xwininfo -root -tree | grep <WxH>`.
+- **Screenshotting the UI:** `npm run screenshot` — headless, no display
+  needed. See "Screenshots" below. (`screencapture` cannot see XQuartz windows
+  at all, and the `xwd` recipe this file used to give is dead — see below.)
 - Throwaway probe clients must live **inside the project** (top-level `await`
   needs the project's `"type": "module"`; a file in `/tmp` fails to transform).
 - No `xdotool`/`xinput`, and `CGEventPost` lacks Accessibility permission, so
@@ -150,10 +149,41 @@ via react-x11's `<svg source>`.
 
 **Run the app with `PATH=/opt/X11/bin:$PATH`** so it picks up the right fonts.
 
-**Screenshotting is currently broken** on this machine: XQuartz's root is a
-multi-display bounding box (5120×2533), and X11 `GetImage` requires the target
-rectangle to be fully visible, so `xwd` fails even on the root window. The
-earlier `xwd`-based recipe worked under a single display.
+## Screenshots
+
+`npm run screenshot` regenerates `docs/img/*.png` **headlessly** —
+`scripts/screenshot.tsx` mounts the real `<App>` through `react-x11/test`
+against node-x11's in-process pure-JS X server, drives it with the real event
+pipeline (`userEvent`), and reads pixels back with `toPNG`. No `$DISPLAY`, no
+xvfb, no XQuartz. This is react-x11's own recipe (`npm run screenshots`
+upstream, documented in its AGENTS.md), adopted here.
+
+It replaced an `xwd`-based recipe that is **dead on this machine**: XQuartz's
+root is a multi-display bounding box (5120×2533), and X11 `GetImage` requires
+the target rectangle to be fully visible, so `xwd` fails even on the root
+window. Don't reach for it again.
+
+Four things are pinned, because the PNGs are committed and anything that varies
+per run makes the diff useless as a signal that something visibly changed:
+
+- **The wall clock** — `Date` is frozen, so the console's timestamps are stable.
+- **The animation clock** — `withFrameClock()`, installed *before* the render.
+  This one is easy to get wrong: the row-selection colour is transitioned, and
+  freezing `Date` alone stalls transitions at t=0, so a clicked row either
+  photographs mid-fade or never highlights at all. Advance the clock and `act()`
+  after every interaction; `settle()` in the script does both.
+- **The fonts** — passed explicitly, or family resolution shells out to
+  `fc-match` and answers differently on every machine.
+- **react-x11's palette** — `colorScheme: 'dark'`. The app's own tokens are
+  fixed, but core widgets (buttons, menu bar) follow the desktop otherwise, and
+  would come out light inside x11vis's dark shell on a light desktop.
+
+The traffic is **synthesized, not recorded**: hand-built X11 bytes fed through
+the real `ConnectionCapture`, so the decoding on show is genuine. Do not swap in
+a real capture — `*.x11cap` is gitignored for privacy, and a recording would not
+be reproducible. When adding messages to the session, note that reply/event/
+error sequence numbers are derived by the `req()`/`seq()` counter rather than
+hand-written, so inserting a request in the middle stays correct.
 
 ## react-x11 gotchas (hard-won)
 

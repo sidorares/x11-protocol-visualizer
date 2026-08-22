@@ -12,6 +12,17 @@ Fittingly, its own UI is a native X11 application built with
 [`react-x11-components`](https://github.com/sidorares/react-x11-components) — the
 X11 visualizer is itself an X11 client.
 
+![x11vis inspecting a session: the message table on the left, the decoded
+request on the right, and the selected field's bytes marked in the hex
+dump](docs/img/x11vis.png)
+
+Above: a `GetProperty` is selected, so the right pane shows it as a call with
+its arguments, a link to the reply that answered it, and every decoded field.
+Picking the `property` field marks the four bytes that carry it — `17000000`,
+atom 23, `RESOURCE_MANAGER` — in the hex. That picture is rendered by
+`npm run screenshot`, headlessly, by the real UI: see
+[Screenshots](#screenshots).
+
 See [`docs/PRD.md`](docs/PRD.md) for the product spec and
 [`docs/decoder-and-state.md`](docs/decoder-and-state.md) for the decoder/state
 design.
@@ -246,6 +257,7 @@ npm test               # decoder, framing, rules, capture tests — no X server 
 npm run typecheck
 npm run gen:protocol   # regenerate protocol tables from an xcbproto XML corpus
 npm run check:generated
+npm run screenshot     # regenerate docs/img/*.png headlessly (no X server)
 ```
 
 The core (`src/core`) is pure Node + TypeScript with **no runtime dependencies**
@@ -261,6 +273,30 @@ the corpus there) or takes a directory argument.
 
 See [AGENTS.md](AGENTS.md) for scope, architecture and the invariants worth not
 breaking.
+
+## Screenshots
+
+`npm run screenshot` regenerates `docs/img/*.png` with **no `$DISPLAY`, no
+xvfb and no XQuartz**. `scripts/screenshot.tsx` mounts the real UI through
+[`react-x11/test`](https://github.com/sidorares/react-x11) against node-x11's
+in-process pure-JS X server, clicks through it with the real event pipeline,
+and reads the pixels back off the window's own 2d context. The approach is
+react-x11's (its `npm run screenshots`), adopted wholesale; it replaces an
+`xwd` recipe that needed a live server and broke on a multi-monitor desktop,
+where `GetImage` cannot read a root window that is mostly off-screen.
+
+The traffic in the picture is **synthesized, not recorded**: hand-built X11
+bytes fed through the shipping `ConnectionCapture`, so every field, span, link
+and resource shown was decoded by the real decoder. A recording would have been
+both non-deterministic and unpublishable — captures carry window titles,
+clipboard contents and keystrokes, which is why `*.x11cap` is gitignored.
+
+Because the PNGs are committed, everything that would otherwise vary per run is
+pinned: the wall clock, the animation clock (react-x11 transitions the
+row-selection colour — read the pixels too early and you photograph a fade),
+the fonts (family resolution otherwise shells out to `fc-match`), and
+react-x11's palette, which follows the desktop unless told not to. Run it on
+a machine with Arial (macOS) or Liberation/DejaVu (Linux) installed.
 
 ## Layout
 
