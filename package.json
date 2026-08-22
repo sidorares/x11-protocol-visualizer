@@ -1,0 +1,49 @@
+{
+  "name": "x11-protocol-visualizer",
+  "version": "0.1.0",
+  "description": "X11 MITM proxy with live protocol visualization \u2014 inspect, link and throttle X11 traffic",
+  "type": "module",
+  "bin": {
+    "x11vis": "bin/x11vis.mjs"
+  },
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "dev": "tsx src/cli.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "gen:protocol": "tsx scripts/gen-protocol.ts",
+    "check:generated": "tsx scripts/check-generated.ts"
+  },
+  "keywords": [
+    "x11",
+    "protocol",
+    "proxy",
+    "mitm",
+    "visualizer",
+    "debugging",
+    "xquartz"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "lucide-static": "^1.33.0",
+    "react": "^19.0.0"
+  },
+  "optionalDependencies": {
+    "@lezer/highlight": "^1.2.0",
+    "@react-x11/components": "github:sidorares/react-x11-components",
+    "react-x11": "github:sidorares/react-x11"
+  },
+  "comments": {
+    "node-x11": "The core decoder deliberately embeds its own span-aware reader with tables derived from node-x11's opcode values (see docs/decoder-and-state.md \u00a72.1), so node-x11 is not a direct runtime dep. The npm package node-x11@1.0.4 also fails its native node-gyp build on Node 26; the current pure-JS node-x11 arrives transitively via react-x11 for the UI.",
+    "@react-x11/components": "Its default branch (0.1.0) declares peer react-x11@^2.0.0 while react-x11's default branch is 1.2.0 \u2014 a pre-release version-number mismatch between two co-developed repos (PRD NFR-8). .npmrc sets legacy-peer-deps=true so the install proceeds; master+master work together at runtime. @lezer/highlight is a peer the <Code> component uses for syntax highlighting.",
+    "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can't load."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

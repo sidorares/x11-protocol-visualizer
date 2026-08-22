@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Captures — recordings of real X11 sessions. They can contain window titles,
+# clipboard contents and keystrokes, so they never belong in the repository.
+*.x11cap
+
+*.log
+.DS_Store
+.idea/
+.vscode/
