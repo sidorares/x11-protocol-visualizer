@@ -12,12 +12,22 @@
  *   ✓ **value-mask bit tables** (CW, GC, CP, …) for value-list expansion
  *   ✓ the **fixed-length field prefix** of each request, with byte offsets, so
  *     generated decoders carry real spans
+ *   ✓ the **variable-length tail** after it — `<list>`s whose length is a
+ *     field, a literal, an arithmetic expression over earlier fields
+ *     (`data_len * format / 8`), or unstated, which xcbproto means as "the
+ *     rest of the message". Offsets past the first list are not known until
+ *     decode time, so the tail is emitted as a *sequence* the decoder walks.
+ *     Struct element sizes are computed too (RECTANGLE, POINT, FP3232, …),
+ *     without which the walk stopped at every drawing request.
  *
- *   ✗ variable-length tails — lists with computed lengths, `<switch>` bitcases,
- *     unions and alignment rules. Generation stops at the first such construct
- *     and marks the message `partial`. Those are where xcbproto's expression
- *     language starts, and doing them properly is its own project; the
- *     hand-written specs in `extensions/` remain the way to cover one richly.
+ *   ✗ `<switch>` bitcases, `<union>`s, and lengths needing `popcount` or
+ *     `sumof`. Generation stops there and marks the message `partial` — 62 of
+ *     652 requests, down from 156. The hand-written specs in `extensions/`
+ *     remain the way to cover one of those richly.
+ *
+ * Nothing here guesses. A length that cannot be evaluated marks the message
+ * partial rather than falling back to "the rest of the message", which would
+ * be the same guess wearing a different hat.
  *
  * Hand-written specs always win over generated data (see extensions/index.ts),
  * so this only ever fills gaps.
@@ -101,11 +111,57 @@ interface GenField {
   resource?: boolean;
 }
 
+/**
+ * What follows the fixed prefix, in wire order.
+ *
+ * Once a list appears, nothing after it has a compile-time offset — the list's
+ * length is a field read at runtime — so the tail is a *sequence* the decoder
+ * walks, accumulating offsets from `tailOff`, rather than more absolute-offset
+ * fields. A list whose length is an `<op>` expression, a `<switch>` or a
+ * `<union>` still stops generation and marks the message partial.
+ */
+/**
+ * An xcbproto length expression, reduced to what a decoder can evaluate:
+ * arithmetic over earlier fields and literals. `popcount`, `sumof`, `enumref`
+ * and unary operators are not represented — a list needing one of those marks
+ * the message partial instead of guessing.
+ */
+type GenExpr =
+  | { op: '+' | '-' | '*' | '/' | '&' | '<<' | '>>'; l: GenExpr; r: GenExpr }
+  | { field: string }
+  | { value: number };
+
+type GenTailItem =
+  | { kind: 'field'; name: string; type: string; len: number; enum?: string; mask?: string; resource?: boolean }
+  | { kind: 'pad'; len: number }
+  /** `<pad align="4">`: skip to the next multiple of `to`. */
+  | { kind: 'align'; to: number }
+  | {
+      kind: 'list';
+      name: string;
+      type: string;
+      /** Element size in bytes. */
+      elem: number;
+      /** Field whose value is the element count… */
+      lenFrom?: string;
+      /** …or a literal count. */
+      lenConst?: number;
+      /** …or an arithmetic expression over earlier fields. */
+      lenExpr?: GenExpr;
+      /** …or "everything left in the message", xcbproto's unstated default. */
+      lenRest?: boolean;
+      resource?: boolean;
+    };
+
 interface GenMessage {
   name: string;
   fields: GenField[];
   /** True when a variable-length construct stopped generation early. */
   partial: boolean;
+  /** The variable-length tail, walked from `tailOff`. */
+  tail?: GenTailItem[];
+  /** Absolute offset where `tail` starts. */
+  tailOff?: number;
   /** For a request: the layout of the reply it generates, if it has one. */
   reply?: GenMessage;
 }
@@ -125,6 +181,51 @@ function collectTypeSizes(docs: Node[]): Record<string, number> {
   }
   // A few well-known aliases xcbproto expects the reader to know.
   Object.assign(sizes, { VISUALID: 4, ATOM: 4, TIMESTAMP: 4, KEYSYM: 4, KEYCODE: 1, KEYCODE32: 4, BUTTON: 1 });
+
+  // Structs of fixed-size fields have a fixed size too, and lists of them —
+  // RECTANGLE, POINT, ARC, FP3232, ModeInfo — are common enough that without
+  // this the tail walker stops at most drawing and RANDR requests. A struct
+  // holding a list (STR, with its length prefix) has no fixed size and is
+  // deliberately left unsized. Iterated to a fix-point because structs nest
+  // and the corpus does not declare them in dependency order.
+  const structs: Node[] = [];
+  for (const doc of docs) {
+    const x = kid(doc, 'xcb');
+    if (x) structs.push(...kids(x, 'struct'));
+  }
+  for (let pass = 0; pass < 8; pass++) {
+    let learned = 0;
+    for (const s of structs) {
+      const name = s.attrs.name!;
+      if (sizes[name] !== undefined) continue;
+      let total = 0;
+      let known = true;
+      for (const c of s.children) {
+        if (c.tag === 'pad') {
+          // An alignment pad inside a struct has no fixed contribution.
+          if (c.attrs.align) { known = false; break; }
+          total += Number(c.attrs.bytes ?? 0) || 0;
+        } else if (c.tag === 'field') {
+          const sz = sizes[c.attrs.type!];
+          if (sz === undefined) { known = false; break; }
+          total += sz;
+        } else if (c.tag === 'list') {
+          // A fixed-count list of a known type still has a fixed size.
+          const count = listCount(c);
+          const sz = sizes[c.attrs.type!];
+          if (sz === undefined || !count || count === 'none' || !('lenConst' in count)) { known = false; break; }
+          total += sz * count.lenConst;
+        } else if (c.tag === 'doc') {
+          continue;
+        } else {
+          known = false;
+          break;
+        }
+      }
+      if (known && total > 0) { sizes[name] = total; learned++; }
+    }
+    if (!learned) break;
+  }
   return sizes;
 }
 
@@ -152,13 +253,73 @@ function layout(node: Node, sizes: Record<string, number>, kind: Kind): GenMessa
   let firstSlotUsed = !usesFirstSlot;
   let partial = false;
 
+  // Everything from the first list onwards, in wire order.
+  const tail: GenTailItem[] = [];
+  let tailOff: number | undefined;
+  /** Once a list has been seen, later items join the tail instead. */
+  const inTail = () => tailOff !== undefined;
+
   for (const c of node.children) {
-    // Constructs whose length depends on other fields end the fixed prefix.
-    if (c.tag === 'list' || c.tag === 'switch' || c.tag === 'valueparam' || c.tag === 'union') {
+    // A switch/union is where xcbproto's expression language really starts;
+    // stop there and say so rather than guessing.
+    if (c.tag === 'switch' || c.tag === 'valueparam' || c.tag === 'union') {
       partial = true;
       break;
     }
+
+    if (c.tag === 'list') {
+      const elem = sizes[c.attrs.type!];
+      const declared = listCount(c);
+      const count =
+        declared === 'none'
+          ? isLastChild(node, c)
+            ? { lenRest: true as const }
+            : undefined
+          : declared;
+      if (elem === undefined || !count) {
+        // An element type of unknown size, a length this generator cannot
+        // evaluate, or an unbounded list with something after it.
+        partial = true;
+        break;
+      }
+      if (!inTail()) tailOff = off;
+      tail.push({
+        kind: 'list',
+        name: c.attrs.name!,
+        type: c.attrs.type!,
+        elem,
+        ...count,
+        resource: XID_TYPES.has(c.attrs.type!),
+      });
+      continue;
+    }
+
     if (c.tag === 'reply' || c.tag === 'doc' || c.tag === 'exprfield') continue;
+
+    if (inTail()) {
+      // Past the first list: sizes are still known, offsets are not.
+      if (c.tag === 'pad') {
+        const align = Number(c.attrs.align ?? 0);
+        if (align > 0) tail.push({ kind: 'align', to: align });
+        else tail.push({ kind: 'pad', len: Number(c.attrs.bytes ?? 0) || 0 });
+      } else if (c.tag === 'field') {
+        const size = sizes[c.attrs.type!];
+        if (size === undefined) {
+          partial = true;
+          break;
+        }
+        tail.push({
+          kind: 'field',
+          name: c.attrs.name!,
+          type: c.attrs.type!,
+          len: size,
+          enum: c.attrs.enum ?? c.attrs.altenum,
+          mask: c.attrs.mask,
+          resource: XID_TYPES.has(c.attrs.type!),
+        });
+      }
+      continue;
+    }
 
     if (c.tag === 'pad') {
       off += Number(c.attrs.bytes ?? 0) || 0;
@@ -189,7 +350,67 @@ function layout(node: Node, sizes: Record<string, number>, kind: Kind): GenMessa
       off = afterFirstSlot;
     }
   }
-  return { name: node.attrs.name!, fields, partial };
+  return {
+    name: node.attrs.name!,
+    fields,
+    partial,
+    ...(tail.length && tailOff !== undefined ? { tail, tailOff } : {}),
+  };
+}
+
+/**
+ * Is `c` the last thing in `node` that occupies wire space? A list with no
+ * declared length means "the rest of the message" — xcbproto leaves it
+ * unstated for PolyFillRectangle, PolyLine, SetClipRectangles and most of the
+ * drawing requests. That is only unambiguous when nothing follows it.
+ */
+function isLastChild(node: Node, c: Node): boolean {
+  const wire = node.children.filter((k) => k.tag !== 'doc' && k.tag !== 'reply');
+  return wire[wire.length - 1] === c;
+}
+
+/**
+ * A list's element count.
+ *
+ * `'none'` means the list declares no length at all — xcbproto's way of
+ * saying "the rest of the message", which every drawing request relies on.
+ * `undefined` means it declares one this generator cannot evaluate
+ * (`popcount`, `sumof`, a unary op), which marks the message partial rather
+ * than producing a length that is quietly wrong. Falling back to
+ * "rest of the message" in *that* case would be the same guess wearing a
+ * different hat, and would silently swallow the padding.
+ */
+function listCount(
+  list: Node,
+): { lenFrom: string } | { lenConst: number } | { lenExpr: GenExpr } | 'none' | undefined {
+  const child = list.children.find((c) => c.tag !== 'doc');
+  if (!child) return 'none';
+  if (child.tag === 'fieldref') return { lenFrom: child.text.trim() };
+  if (child.tag === 'value') {
+    const n = Number(child.text.trim());
+    return Number.isFinite(n) ? { lenConst: n } : undefined;
+  }
+  const expr = parseExpr(child);
+  return expr ? { lenExpr: expr } : undefined;
+}
+
+const EXPR_OPS = new Set(['+', '-', '*', '/', '&', '<<', '>>']);
+
+/** `<op>` / `<fieldref>` / `<value>` — the evaluable part of the grammar. */
+function parseExpr(node: Node): GenExpr | undefined {
+  if (node.tag === 'fieldref') return { field: node.text.trim() };
+  if (node.tag === 'value') {
+    const n = Number(node.text.trim());
+    return Number.isFinite(n) ? { value: n } : undefined;
+  }
+  if (node.tag !== 'op') return undefined;
+  const op = node.attrs.op ?? '';
+  if (!EXPR_OPS.has(op)) return undefined; // popcount, and anything new
+  const args = node.children.filter((c) => c.tag !== 'doc');
+  if (args.length !== 2) return undefined;
+  const l = parseExpr(args[0]!);
+  const r = parseExpr(args[1]!);
+  return l && r ? ({ op, l, r } as GenExpr) : undefined;
 }
 
 function parseExtension(file: string, doc: Node, sizes: Record<string, number>): Ext | undefined {
@@ -264,13 +485,38 @@ function emit(exts: Ext[]): string {
   out.push('// GENERATED by scripts/gen-protocol.ts from the xcbproto XML corpus.');
   out.push('// Do not edit by hand — re-run `npm run gen:protocol`.');
   out.push('//');
-  out.push('// Contains names, enums, value-mask bits and fixed-prefix field layouts.');
-  out.push('// Variable-length tails (lists, switches) are not generated; a message that');
-  out.push('// has one is marked `partial`. Hand-written specs in ../extensions/ take');
-  out.push('// precedence over everything here.');
+  out.push('// Contains names, enums, value-mask bits, fixed-prefix field layouts, and');
+  out.push('// the variable-length `tail` that follows them — lists whose length is a');
+  out.push('// field, a literal, an arithmetic expression over earlier fields, or the');
+  out.push('// rest of the message. A `<switch>`, `<union>` or a length needing popcount/');
+  out.push('// sumof still marks the message `partial`. Hand-written specs in');
+  out.push('// ../extensions/ take precedence over everything here.');
   out.push('');
   out.push('export interface GenField { name: string; type: string; off: number; len: number; enum?: string; mask?: string; resource?: boolean }');
-  out.push('export interface GenMessage { name: string; fields: GenField[]; partial: boolean; reply?: GenMessage }');
+  out.push('');
+  out.push('/** An arithmetic length expression over earlier fields. */');
+  out.push("export type GenExpr =");
+  out.push("  | { op: '+' | '-' | '*' | '/' | '&' | '<<' | '>>'; l: GenExpr; r: GenExpr }");
+  out.push('  | { field: string }');
+  out.push('  | { value: number };');
+  out.push('');
+  out.push('/** One step of the variable-length tail, walked in wire order. */');
+  out.push('export type GenTailItem =');
+  out.push("  | { kind: 'field'; name: string; type: string; len: number; enum?: string; mask?: string; resource?: boolean }");
+  out.push("  | { kind: 'pad'; len: number }");
+  out.push("  | { kind: 'align'; to: number }");
+  out.push("  | { kind: 'list'; name: string; type: string; elem: number; lenFrom?: string;");
+  out.push('      lenConst?: number; lenExpr?: GenExpr; lenRest?: boolean; resource?: boolean };');
+  out.push('');
+  out.push('export interface GenMessage {');
+  out.push('  name: string;');
+  out.push('  fields: GenField[];');
+  out.push('  partial: boolean;');
+  out.push('  /** Walked from `tailOff`; offsets past the first list are dynamic. */');
+  out.push('  tail?: GenTailItem[];');
+  out.push('  tailOff?: number;');
+  out.push('  reply?: GenMessage;');
+  out.push('}');
   out.push('export interface GenExtension {');
   out.push('  xname?: string;');
   out.push('  header: string;');

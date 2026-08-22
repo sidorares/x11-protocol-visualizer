@@ -141,16 +141,21 @@ Working and tested against live XQuartz:
 - **Diff two captures** (`--diff a.x11cap b.x11cap`): what changed between two
   runs, compared over aggregates that survive differing XIDs and timing.
 - **Generated protocol tables** (`npm run gen:protocol`): names, enums,
-  value-mask bits and fixed-prefix field layouts generated from the **xcbproto
-  XML corpus** (32 files → 652 requests, 102 events, 67 errors, 230 enums).
-  Used as a fallback wherever a hand-written spec doesn't cover a message, which
-  removes the `ext139:req4` long tail entirely. Variable-length tails (lists,
-  `<switch>`) are not generated — such a message decodes up to that point and is
-  marked `partial`.
+  value-mask bits and field layouts generated from the **xcbproto XML corpus**
+  (32 files → 652 requests, 102 events, 67 errors, 230 enums). Used as a
+  fallback wherever a hand-written spec doesn't cover a message, which removes
+  the `ext139:req4` long tail entirely.
+- **Variable-length tails**: a request's trailing `<list>`s are decoded too —
+  lengths that are a field (`InternAtom`'s name), a literal, an arithmetic
+  expression over earlier fields (`ChangeProperty`'s `data_len * format / 8`),
+  or unstated, which xcbproto means as "the rest of the message" (every drawing
+  request). Text comes out as text, binary as `[N bytes]`, struct arrays as
+  `[2 × RECTANGLE]` — each with a byte span, so clicking the field highlights
+  exactly its bytes in the hex.
 
-Not yet built: full variable-length decode for the generated long tail (the
-remaining half of the codegen — lists, `<switch>` bitcases and xcbproto's
-expression language).
+Still `partial`: `<switch>` bitcases, `<union>`s, and lengths needing `popcount`
+or `sumof` — 62 of 652 requests, down from 156. Such a message decodes up to
+that point and says so rather than guessing past it.
 
 ### UI layout
 

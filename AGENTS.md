@@ -216,11 +216,22 @@ section for detail.
 
 `npm run gen:protocol` reads the xcbproto XML corpus (macOS: XQuartz ships it at
 `/opt/X11/share/xcb`; pass another directory as an argument) and writes
-`src/core/protocol/generated.ts`. It generates names, enums, value-mask bits and
-**fixed-prefix** field layouts. It deliberately stops at variable-length
-constructs (`<list>`, `<switch>`, unions) and marks those messages `partial` —
-completing them means implementing xcbproto's expression language, which is the
-one substantial piece of the plan still open.
+`src/core/protocol/generated.ts`. It generates names, enums, value-mask bits,
+fixed-prefix field layouts, and the **variable-length tail** after them.
+
+A tail is a *sequence* the decoder walks, not more absolute-offset fields:
+once a list appears, nothing after it has a compile-time offset. Lists carry
+their length as `lenFrom` (an earlier field), `lenConst`, `lenExpr` (an
+arithmetic tree — `data_len * format / 8`) or `lenRest` ("the rest of the
+message", which is what xcbproto means when a list declares no length at all).
+Struct element sizes are computed to a fix-point, without which the walk
+stopped at every drawing request.
+
+**Nothing guesses.** A length that cannot be evaluated marks the message
+`partial` rather than falling back to `lenRest` — that fallback would be the
+same guess wearing a different hat, and would silently swallow the padding.
+Still partial: `<switch>`, `<union>`, and `popcount`/`sumof` lengths — 62 of
+652 requests, down from 156.
 
 The layout rules are subtle and are the thing to re-check if offsets look wrong:
 a **core request** puts its first 1-byte field in byte 1 then continues at 4; an
@@ -229,8 +240,10 @@ a **core request** puts its first 1-byte field in byte 1 then continues at 4; an
 `<eventcopy>` borrows the referenced event's layout — XI2 declares most of its
 events that way.
 
-Open: full variable-length decode in the generator (xcbproto's expression
-language — lists with computed lengths, `<switch>` bitcases, unions).
+Open: `<switch>` bitcases and `<union>`s in the generator. A switch is a
+value-list keyed by a bitmask, which the hand-written value-list expansion in
+`valuelist.ts` already does well for the masks that matter — so this is worth
+doing for coverage, not because anything common is missing.
 
 **On advisory output** (lints, hotspots): calibrate severity honestly. A running
 app holding resources open is not a leak; repeated *creates* are not the same
