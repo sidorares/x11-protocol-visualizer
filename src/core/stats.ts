@@ -56,6 +56,23 @@ export interface Hotspot {
 const REPLY_HEAVY_HINT =
   'Each of these blocks the client until the server answers; over a WAN link that is one full round trip each.';
 
+/**
+ * Requests whose repeats are not a cache miss, and so are not waste.
+ *
+ * Two kinds. **GetInputFocus** is the protocol's sync primitive: clients use
+ * it as a fence, and node-x11 injects one to give a void request's callback
+ * something to fire on — its repeats are flow control, already priced as
+ * blocking round trips above. **GetProperty with delete=1** consumes what it
+ * reads, so identical request bytes answer differently every time; ntk's
+ * shared-glyph directory polls a property mailbox exactly this way. Counting
+ * either as "cache it client-side" reports waste that is not there.
+ */
+function isConsumingQuery(name: string, bytes: Buffer): boolean {
+  if (name === 'GetInputFocus') return true;
+  // GetProperty: opcode 20, the delete flag in the byte after it
+  return name === 'GetProperty' && bytes.length > 1 && bytes[0] === 20 && bytes[1] === 1;
+}
+
 function findHotspots(
   messages: readonly CapturedMessage[],
   requests: Map<string, NameStat>,
@@ -82,7 +99,7 @@ function findHotspots(
   //    on what the request does, so classify rather than give one glib answer:
   //    a repeated *query* is cacheable, whereas a repeated *create* is usually
   //    a resource being torn down and rebuilt every frame.
-  const identical = new Map<string, { n: number; name: string; hadReply: boolean }>();
+  const identical = new Map<string, { n: number; name: string; hadReply: boolean; bytes: Buffer }>();
   for (const m of messages) {
     if (m.category !== 'request') continue;
     const key = `${m.name}:${m.bytes.toString('base64')}`;
@@ -91,13 +108,13 @@ function findHotspots(
       e.n++;
       e.hadReply ||= m.replyId != null;
     } else {
-      identical.set(key, { n: 1, name: m.name, hadReply: m.replyId != null });
+      identical.set(key, { n: 1, name: m.name, hadReply: m.replyId != null, bytes: m.bytes });
     }
   }
   const dupes = [...identical.values()].filter((e) => e.n > 2).sort((a, b) => b.n - a.n);
   const isCreate = (n: string) => /(^|:)(Create|Alloc|Open)/.test(n);
 
-  const queries = dupes.filter((d) => d.hadReply);
+  const queries = dupes.filter((d) => d.hadReply && !isConsumingQuery(d.name, d.bytes));
   if (queries.length) {
     const wasted = queries.reduce((a, d) => a + d.n - 1, 0);
     out.push({
@@ -253,4 +270,54 @@ export function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Render stats as plain text, for the CLI — the Statistics tab's numbers for
+ * anyone who is looking at a capture from a script or a CI log rather than
+ * from the UI. Kept beside `computeStats` for the same reason `formatDiff`
+ * sits beside `diffCaptures`: the shape and its rendering drift apart when
+ * they live in different files.
+ */
+export function formatStats(stats: CaptureStats): string {
+  const lines: string[] = [];
+  const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  lines.push(
+    `${stats.total} messages over ${(stats.durationMs / 1000).toFixed(1)}s — ` +
+      `${kb(stats.bytesC2S)} up, ${kb(stats.bytesS2C)} down`,
+  );
+  lines.push(
+    `${stats.roundTrips} round trips, ${stats.stalls} blocking — ` +
+      `RTT mean ${stats.rttMeanMs.toFixed(1)} ms, p50 ${stats.rttP50Ms.toFixed(1)} ms, ` +
+      `max ${stats.rttMaxMs.toFixed(1)} ms`,
+  );
+  if (stats.slowest) {
+    lines.push(
+      `  slowest: ${stats.slowest.name} #${stats.slowest.id} at ${stats.slowest.rttMs.toFixed(1)} ms`,
+    );
+  }
+
+  const table = (title: string, rows: readonly NameStat[]) => {
+    if (!rows.length) return;
+    lines.push('', `  ${title}`);
+    for (const r of rows.slice(0, 10)) {
+      lines.push(
+        `    ${r.name.padEnd(34)} ${String(r.count).padStart(6)}  ${kb(r.bytes).padStart(10)}`,
+      );
+    }
+  };
+  table('top requests', stats.topRequests);
+  table('heaviest requests (by bytes)', stats.heaviestRequests);
+  table('top events', stats.topEvents);
+  table('by extension', stats.byExtension);
+  if (stats.errors.length) table('errors', stats.errors);
+
+  if (stats.hotspots.length) {
+    lines.push('', '  hotspots');
+    for (const h of stats.hotspots) {
+      lines.push(`    [${h.severity}] ${h.title}`);
+      lines.push(`      ${h.detail}`);
+    }
+  }
+  return lines.join('\n');
 }

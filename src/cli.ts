@@ -15,6 +15,7 @@ import { NetworkEmulator, NETWORK_PROFILES } from './core/throttle.js';
 import { CAPTURE_VERSION, loadCapture, serializeCapture } from './core/capture-file.js';
 import { Interceptor } from './core/intercept.js';
 import { diffCaptures, formatDiff } from './core/diff.js';
+import { computeStats, formatStats } from './core/stats.js';
 
 interface Args {
   port: number;
@@ -22,6 +23,8 @@ interface Args {
   record: string | undefined;
   open: string | undefined;
   diff: [string, string] | undefined;
+  stats: string | undefined;
+  json: boolean;
   ui: boolean;
   uiDisplay: string | undefined;
   network: string;
@@ -40,6 +43,8 @@ function parseArgs(argv: string[]): Args {
     record: undefined,
     open: undefined,
     diff: undefined,
+    stats: undefined,
+    json: false,
     ui: true,
     uiDisplay: process.env.DISPLAY,
     network: 'none',
@@ -71,6 +76,12 @@ function parseArgs(argv: string[]): Args {
         if (a1 && b1) a.diff = [a1, b1];
         break;
       }
+      case '--stats':
+        a.stats = next();
+        break;
+      case '--json':
+        a.json = true;
+        break;
       case '-o':
       case '--open':
         a.open = next();
@@ -128,6 +139,8 @@ Options:
       --record <file>   Record the session to <file> (.x11cap)
   -o, --open <file>     Open a saved .x11cap for offline inspection
       --diff <a> <b>    Compare two .x11cap captures and print what changed
+      --stats <file>    Print protocol statistics and hotspots for a .x11cap
+      --json            Machine-readable output for --stats and --diff
       --no-ui           Headless: log to console, do not open the react-x11 UI
       --ui-display <s>  DISPLAY for the UI window (default: $DISPLAY, bypassing the proxy)
       --intercept       Enable breakpoints / fault injection (forwards whole
@@ -192,6 +205,27 @@ async function main() {
   const store = new CaptureStore();
 
   // Diff mode: compare two captures and exit; no X server involved.
+  // Statistics for a saved capture, without opening the UI. The core is pure
+  // and dependency-free, so this is the same computation the Statistics tab
+  // shows — which is the point: a number quoted in a PR should be the number
+  // the tool reports, not a second implementation of it.
+  if (args.stats) {
+    try {
+      const store = new CaptureStore();
+      loadCapture(fs.readFileSync(args.stats, 'utf8'), store);
+      const stats = computeStats(store.messages);
+      process.stdout.write(
+        args.json
+          ? `${JSON.stringify(stats, null, 2)}\n`
+          : `${args.stats}\n\n` + formatStats(stats) + '\n',
+      );
+      return;
+    } catch (err) {
+      process.stderr.write(`x11vis: cannot read stats: ${(err as Error).message}\n`);
+      process.exit(1);
+    }
+  }
+
   if (args.diff) {
     try {
       const [pa, pb] = args.diff;
@@ -199,8 +233,11 @@ async function main() {
       const sb = new CaptureStore();
       loadCapture(fs.readFileSync(pa, 'utf8'), sa);
       loadCapture(fs.readFileSync(pb, 'utf8'), sb);
+      const diff = diffCaptures(sa.messages, sb.messages);
       process.stdout.write(
-        `${pa} → ${pb}\n\n` + formatDiff(diffCaptures(sa.messages, sb.messages)) + '\n',
+        args.json
+          ? `${JSON.stringify(diff, null, 2)}\n`
+          : `${pa} → ${pb}\n\n` + formatDiff(diff) + '\n',
       );
       return;
     } catch (err) {
