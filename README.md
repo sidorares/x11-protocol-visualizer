@@ -138,6 +138,11 @@ Working and tested against live XQuartz:
   `kind === 'reply' && msg.name.includes('AddGlyphs') && request.f['num-glyphs'] > 100`.
   A debugger toolbar shows Paused/Running with **Step / Continue / Skip**, the
   held message, and how many are queued behind it.
+- **Headless statistics** (`--stats a.x11cap`, `--json`): the Statistics tab's
+  numbers without the UI — bytes each way, round trips, blocking round trips,
+  RTT mean/p50/max, the request/event/extension tables and the hotspot list.
+  `--json` emits the whole `CaptureStats` object (and works with `--diff` too),
+  so a CI script can gate on a number the tool computed rather than reimplement it.
 - **Diff two captures** (`--diff a.x11cap b.x11cap`): what changed between two
   runs, compared over aggregates that survive differing XIDs and timing.
 - **Generated protocol tables** (`npm run gen:protocol`): names, enums,
