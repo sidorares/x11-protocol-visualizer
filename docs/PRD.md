@@ -209,7 +209,7 @@ The user asked how to visualize large arrays / binary input (`[Buffer 12345 byte
 - **FR-48** *(Nice-to-have)* import/export a subset or a single message; export decoded text/JSON.
 
 ### 6.12 UI platform (react-x11) — constraints & self-inspection
-- **FR-49** The UI **must be built with `react-x11` and `react-x11-components`**, rendering as a native X11 application. No browser, Electron, or web view is involved. Both packages are **not yet published to npm** — depend on their **GitHub default branch** (see §10 for the dependency form and the pinning policy).
+- **FR-49** The UI **must be built with `react-x11` and `react-x11-components`**, rendering as a native X11 application. No browser, Electron, or web view is involved. Both packages are **published on npm** (`react-x11@2.0.0`, `@react-x11/components@0.2.0`) — depend on them as ordinary **semver ranges** (see §10 for the dependency form).*(Superseded: they were tracked from their GitHub default branches until those releases landed.)*
 - **FR-50** Reuse `react-x11-components` widgets rather than rebuilding them; see the component mapping in §7. Build custom only what the library lacks (principally the **hex view** and the **span-highlight overlay**).
 - **FR-51** **The UI's own X11 connection must bypass the proxy.** `react-x11` connects to the real `$DISPLAY` directly, never to the tool's own listener, so the UI's rendering traffic is never captured as if it were the subject. This must hold even when the user sets `DISPLAY=localhost:1` in their shell: the UI resolves its target from the **original, pre-proxy display** captured at startup (`--ui-display` overrides).
 - **FR-52** **Self-inspection is an explicit, supported mode** (and the best demo): pointing a *second* instance of the tool at the first — or launching the UI deliberately through the proxy via `--ui-through-proxy` — lets `x11vis` visualize `react-x11`'s own rendering. This makes it a development aid for `react-x11` itself (spot redundant `PolyFillRectangle`s, glyph re-uploads, round-trip stalls).
@@ -290,7 +290,7 @@ The component library covers most of this UI off the shelf; the table below is t
 - **NFR-5 Security/privacy:** bind localhost by default; never persist/log auth cookies or input events unless explicitly enabled; clear in-UI warning that captures may contain keystrokes/clipboard/secrets.
 - **NFR-6 Portability:** Linux + macOS (XQuartz) hosts; Unix-socket and TCP targets; handle both byte orders. The UI inherits `react-x11`'s reach (Linux desktops + XQuartz).
 - **NFR-7 UI responsiveness under self-load:** because the UI is itself an X11 client, its own rendering cost is on the same machine as the traffic under study. Repaints must be **coalesced and virtualized** so a busy capture doesn't turn into a UI-traffic storm (FR-53); the packet list must never repaint more than once per frame regardless of ingest rate.
-- **NFR-8 Upstream volatility:** `react-x11`/`react-x11-components` are pre-release and tracked from a git branch. Isolate their surface behind thin local wrappers where practical so a breaking upstream change is a one-file fix, and pin SHAs for releases (§10).
+- **NFR-8 Upstream volatility:** `react-x11`/`react-x11-components` are early-version packages (`2.0.0` / `0.2.0`) — published, but still moving fast, and `0.x` on the components means a minor bump may break. Isolate their surface behind thin local wrappers where practical so a breaking upstream change is a one-file fix, and rely on the committed lockfile for reproducible builds (§10). *(Superseded: this previously called for pinning git SHAs for releases, which the npm releases made unnecessary.)*
 
 ---
 
@@ -328,18 +328,17 @@ Image rendering (`PutImage`/`GetImage`), glyphs, cursors, property/type-aware va
 - **Runtime:** Node.js + TypeScript, one process for proxy + UI. `net` for TCP + Unix sockets.
 - **Wire (de)serialization: [`node-x11`](https://github.com/sidorares/node-x11)** — reuse its opcode/type tables, `autogen/` definitions, and `lib/ext/*` extension modules rather than re-deriving them. Its unpack path yields values but **not byte spans**, so `x11vis` wraps it in a span-aware reader layer; see [decoder-and-state.md §2](./decoder-and-state.md#2-where-the-protocol-description-comes-from). Published on npm, so a normal dependency.
 - **UI: [`react-x11`](https://github.com/sidorares/react-x11) + [`react-x11-components`](https://github.com/sidorares/react-x11-components)** (FR-49). A React reconciler whose host environment is the X server: `<window>`, `<box>`, `<text>`, `<canvas>`, Yoga flexbox layout, fontkit text shaping, XRender drawing, and synthetic capture/bubble events (`onClick`, `onMouseEnter/Leave`, `onWheel`, `onKeyDown`) — the hover-highlight interactions in §6.6 map onto these directly.
-- **Dependency form — neither UI package is published to npm yet.** Depend on the **GitHub default branch**:
+- **Dependency form — both UI packages are published on npm.** Depend on **semver ranges**:
   ```json
   {
-    "dependencies": {
-      "react-x11": "github:sidorares/react-x11",
-      "@react-x11/components": "github:sidorares/react-x11-components",
-      "node-x11": "^1.0.4",
+    "optionalDependencies": {
+      "react-x11": "^2.0.0",
+      "@react-x11/components": "^0.2.0",
       "react": "^19"
     }
   }
   ```
-  `react-x11-components` takes `react-x11` as a **peer** dependency deliberately (to prevent a duplicate reconciler instance) — keep exactly one copy resolved; verify with `npm ls react-x11` in CI. **Pinning policy:** track the default branch during development, but pin to a commit SHA (`github:sidorares/react-x11#<sha>`) for releases so builds are reproducible; switch to semver ranges once the packages publish.
+  `react-x11-components` takes `react-x11` as a **peer** dependency deliberately (to prevent a duplicate reconciler instance) — keep exactly one copy resolved; verify with `npm ls react-x11` in CI. `@react-x11/components@0.2.0` declares peer `react-x11@^2.0.0`, which `^2.0.0` satisfies, so the install needs no `legacy-peer-deps` escape hatch. **Pinning policy:** the committed lockfile provides reproducibility; treat a `@react-x11/components` **minor** bump as potentially breaking while it is `0.x`. *(Superseded: this previously specified `github:sidorares/...` branch deps and SHA pinning for releases.)*
 - **Protocol definitions:** **generate span-aware decoders from `xcbproto` XML** (core + extensions) via a build-time codegen, seeded by `node-x11`'s existing tables for the core. This is the extension-coverage multiplier — see [decoder-and-state.md §2](./decoder-and-state.md#2-where-the-protocol-description-comes-from).
 - **State/store:** plain in-process store (a small observable + React `useSyncExternalStore`); no IPC or network layer between capture and UI (§5). Updates are **batched/coalesced** per frame to satisfy FR-53.
 - **Packaging:** single `x11vis` CLI that starts the proxy and opens the UI window; `--record` runs headless (no X connection needed, FR-54).
