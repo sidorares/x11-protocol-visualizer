@@ -24,9 +24,9 @@ jobs:
           cache: npm
 
       # The proxy and decoder — everything the tests touch — have no runtime
-      # dependencies. The react-x11 UI stack is optional and installs from
-      # GitHub, so it is skipped here: CI has no X server to render into, and
-      # omitting it keeps the run fast and independent of those repositories.
+      # dependencies. The react-x11 UI stack is optional, so it is skipped
+      # here: CI has no X server to render into, and omitting it keeps the run
+      # fast and independent of that stack.
       - name: Install
         run: npm ci --omit=optional
 

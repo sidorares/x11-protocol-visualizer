@@ -196,16 +196,17 @@ npm install
 ```
 
 The **proxy/decoder core has no runtime dependencies** and always installs. The
-UI stack (`react-x11`, `@react-x11/components`) is in `optionalDependencies`,
-pulled from GitHub (neither is on npm yet). Two known wrinkles, both handled:
+UI stack (`react-x11@^2`, `@react-x11/components@^0.2`) is in
+`optionalDependencies`, resolved from npm as ordinary semver ranges.
 
-- `.npmrc` sets `legacy-peer-deps=true` because `@react-x11/components@0.1.0`
-  declares peer `react-x11@^2` while `react-x11` is at `1.2.0` (a pre-release
-  version-number mismatch between the two co-developed repos).
-- `@react-x11/components` currently ships without a prebuilt `dist/` on install;
-  if the UI reports the components missing, build them once:
-  `cd node_modules/@react-x11/components && npm i --ignore-scripts && npx tsc -p tsconfig.build.json`
-  (or check out the repo and `npm run build`).
+Both packages used to be tracked from their GitHub default branches, which cost
+this repo two workarounds — a `legacy-peer-deps=true` `.npmrc` to paper over a
+pre-release peer-version mismatch, and a manual `tsc` build because the
+components shipped no `dist/`. The published releases fixed both: components
+`0.2.0` declares peer `react-x11@^2.0.0` against `react-x11` `2.0.0`, and ships
+prebuilt. A plain `npm install` now resolves under strict peer checking, with a
+single deduped `react-x11` copy (`npm ls react-x11`) — the one thing worth
+keeping true, since two reconciler instances would break rendering.
 
 If the UI can't load, `x11vis` runs headless automatically.
 

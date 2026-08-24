@@ -265,6 +265,6 @@ Glyphs (RENDER `AddGlyphs`, core font glyphs) and cursors follow the same "decod
 - `xcbproto` — machine-readable X11 protocol descriptions (core + extensions); primary source for the codegen.
 - [`node-x11`](https://github.com/sidorares/node-x11) — opcode/type tables, `autogen/` definitions, `lib/ext/*` extension modules, and the connection/transport layer. Source of definitions (§2.1) and a differential-test oracle (§10).
 - [`react-x11`](https://github.com/sidorares/react-x11) — React reconciler targeting the X server; the UI platform (PRD FR-49). Built on `node-x11` + yoga-layout + fontkit; draws via XRender.
-- [`react-x11-components`](https://github.com/sidorares/react-x11-components) — widget library (`Table`, `Tree`, `Code`, `Timeline`, `Flow`, charts); see the component mapping in PRD §7.1. Neither UI package is published to npm yet — consume from the GitHub default branch (PRD §10).
+- [`react-x11-components`](https://github.com/sidorares/react-x11-components) — widget library (`Table`, `Tree`, `Code`, `Timeline`, `Flow`, charts); see the component mapping in PRD §7.1. Both UI packages are published on npm — consume as semver ranges (PRD §10).
 - X11 core protocol spec; X.Org extension specs (RENDER, XFIXES, RANDR, XInput 2.x, SHM, DAMAGE, SYNC, Present, XKB, BIG-REQUESTS, XGE).
 - `xtrace` / `x11trace` — prior-art protocol tracers for cross-checking.
