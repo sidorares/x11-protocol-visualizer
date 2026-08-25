@@ -20,11 +20,12 @@ import { Tree } from '@react-x11/components/tree';
 import { CodeEditor } from '@react-x11/components/code-editor';
 import { javascript } from '@react-x11/components/code-language';
 import { Icon } from './icons.js';
-import { Button, Pill, T, TextField } from './controls.js';
+// `T as C`, not `const C = T` at module scope: under hot reload named
+// imports are live bindings initialized after evaluation, so a module-scope
+// copy would capture undefined (see App.tsx).
+import { Button, Pill, T, T as C, TextField } from './controls.js';
 import { buildCatalog, PSEUDO_PARAMS, type CatalogEntry, type CatalogNode, type CatalogParam } from '../core/catalog.js';
 import { OPS, type Predicate, type PredicateOp, type PredicateSource, type Rule } from '../core/rules.js';
-
-const C = T;
 
 const SCRIPT_PLACEHOLDER =
   "// A JavaScript expression — its result is the match.\n" +
