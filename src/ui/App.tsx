@@ -24,11 +24,12 @@ import type { HeldMessage, InterceptRule, Interceptor } from '../core/intercept.
 import { describeRule, type Rule } from '../core/rules.js';
 import { BreakOnDialog } from './BreakOnDialog.js';
 import { Icon } from './icons.js';
-import { Button, Divider, IconButton, Pill, T, TextField } from './controls.js';
-
-// The shared design tokens; `C` is kept as the local alias so the many
-// existing colour references keep reading naturally.
-const C = T;
+// The shared design tokens; `C` stays the local alias so the many existing
+// colour references keep reading naturally. Aliased in the import (not
+// `const C = T` at module scope) so that under hot reload — where named
+// imports become live bindings initialized after module evaluation — `C`
+// is read lazily at render time instead of capturing undefined.
+import { Button, Divider, IconButton, Pill, T, T as C, TextField } from './controls.js';
 const CAT_COLOR: Record<Category, string> = {
   request: '#4aa3ff', reply: '#3ecf8e', error: '#ff5c5c', event: '#e3b341',
   'setup-request': '#8a94a6', 'setup-reply': '#8a94a6',
@@ -45,7 +46,10 @@ const MAX_ROWS = 5000;
 /** Bytes shown in the hex block; the rest is summarised as a trailing count. */
 const HEX_MAX_BYTES = 256;
 /** …which is this many 16-byte rows, and so a known natural height. */
-export const HEX_MAX_ROWS = HEX_MAX_BYTES / 16;
+// Not exported: nothing imports it, and keeping App the module's only
+// runtime export makes it a self-accepting Fast Refresh boundary, so edits
+// here hot-apply instead of requiring a restart.
+const HEX_MAX_ROWS = HEX_MAX_BYTES / 16;
 const FILTER_CATS: Category[] = ['request', 'reply', 'event', 'error'];
 // Kind is always shown (it is the classifier); the rest are toggleable.
 const TOGGLE_COLS = [
@@ -359,7 +363,7 @@ export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
 
   return (
     <window title="x11vis — X11 protocol visualizer" width={1240} height={780}
-      style={{ flexDirection: 'column', backgroundColor: C.bg, color: C.text, fontFamily: 'monospace' }}>
+      style={{ flexDirection: 'column', backgroundColor: C.bg, color: C.text }}>
       <MenuBar menus={menus} globalMenu={false} style={{ backgroundColor: C.panel }} />
       <Toolbar total={all.length} shown={rows.length} counts={counts} conns={store.connections.length}
         paused={paused} mutedCats={mutedCats} onToggleCat={toggleCat} query={query} onQuery={setQuery}

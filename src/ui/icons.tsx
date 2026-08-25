@@ -37,9 +37,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
+// Namespace import, called at module scope: under hot reload (Fast Refresh)
+// named imports become live bindings that are undefined until a microtask
+// after evaluation, and react-x11's refresh loader rejects the named form.
+import module_ from 'node:module';
 
-const require_ = createRequire(import.meta.url);
+const require_ = module_.createRequire(import.meta.url);
 
 let iconDir: string | undefined;
 try {
