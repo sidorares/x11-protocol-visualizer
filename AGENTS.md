@@ -75,6 +75,8 @@ scripts/gen-protocol.ts   the generator (npm run gen:protocol)
     tables.ts             core opcode/event/error names
     enums.ts, valuelist.ts  bitmask/enum/value-list decoding
     replies.ts            reply bodies, keyed by the request's opcode
+    events.ts             core events 2-34: summaries + the fields no
+                          generated layout can express (docs §3.3)
     image.ts              PutImage/GetImage/glyph → RGBA (lazy)
     extensions/           one file per extension + registry
 src/ui/                   react-x11 app (excluded from the core typecheck)

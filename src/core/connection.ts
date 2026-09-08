@@ -26,6 +26,7 @@ import { EXTENSIONS } from './protocol/extensions/index.js';
 import type { CursorSpec, DisplayImageInfo, GlyphSpec } from './protocol/image.js';
 import { decodeValueList } from './protocol/valuelist.js';
 import { decodeGenerated, generatedCore, generatedForExtension } from './protocol/generic.js';
+import { decodeCoreEvent } from './protocol/events.js';
 import { CW_BITS, GC_BITS, WINDOW_CLASS } from './protocol/enums.js';
 import { xid } from './util/hex.js';
 
@@ -62,8 +63,10 @@ const XID_RE = /^0x[0-9a-f]+$/i;
 function mergeFields(into: Field[], generated: Field[]): void {
   const have = new Set(into.map((f) => f.name));
   for (const g of generated) if (!have.has(g.name)) into.push(g);
-  into.sort((a, b) => a.span.off - b.span.off || a.span.len - b.span.len);
+  into.sort(byOffset);
 }
+/** Wire order: by byte offset, and the narrower field first where they share one. */
+const byOffset = (a: Field, b: Field) => a.span.off - b.span.off || a.span.len - b.span.len;
 const IMAGE_FORMAT: Record<number, string> = { 0: 'Bitmap', 1: 'XYPixmap', 2: 'ZPixmap' };
 
 export interface CaptureSink {
@@ -362,6 +365,29 @@ export class ConnectionCapture {
         }
       } else if (evCode >= 2 && evCode <= 34) {
         name = CORE_EVENTS[evCode] ?? `Event(${evCode})`;
+        // Hand-written decode first — it owns the summary and the fields no
+        // layout can express — then the generated xcbproto layout fills in
+        // every other parameter of the event (docs §3.3, AGENTS.md invariant 8).
+        try {
+          const d = decodeCoreEvent(evCode, buf, order, ctx);
+          if (d) {
+            eventSummary = d.summary;
+            fields.push(...d.fields);
+          }
+        } catch {
+          /* framing already succeeded; leave the row minimally decoded */
+        }
+        const gen = generatedCore();
+        const gm = gen?.events?.[evCode];
+        if (gm) {
+          try {
+            const g = decodeGenerated(gm, buf, order, gen, (a) => this.atomName(a));
+            mergeFields(fields, g.fields);
+            if (!eventSummary) eventSummary = g.summary;
+          } catch {
+            /* ignore */
+          }
+        }
       } else {
         const owner = this.extEventOwner(evCode);
         const evDef = owner ? EXTENSIONS[owner.name]?.events?.[evCode - owner.firstEvent] : undefined;
@@ -380,10 +406,14 @@ export class ConnectionCapture {
         }
       }
       if (fromSend) name += ' (SendEvent)';
-      // KeymapNotify (11) has no sequence field.
+      // KeymapNotify (11) has no sequence field — bytes 1-31 are the keymap.
       if (evCode !== 11) {
         fields.push({ name: 'sequence', value: String(r16(buf, 2, order)), span: { off: 2, len: 2 } });
       }
+      // The sequence is appended last but lives at byte 2, and the hex view
+      // reads top-to-bottom against the bytes, so show the whole event in wire
+      // order rather than in the order the decoders happened to run.
+      fields.sort(byOffset);
     }
 
     const msg: CapturedMessage = {

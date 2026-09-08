@@ -39,6 +39,27 @@ const r = (buf: Buffer, off: number, len: number, e: Order): number => {
   }
 };
 
+/**
+ * The signed wire types. A coordinate is the common one and it is genuinely
+ * negative all the time — a pointer event just outside its window, a window
+ * placed off-screen — so reading INT16 unsigned turned `-1` into `65535`.
+ */
+const SIGNED = new Set(['INT8', 'INT16', 'INT32', 'INT64']);
+
+/** Reinterpret an unsigned `len`-byte value as two's complement. */
+const signed = (v: number, len: number): number => {
+  const bits = len * 8;
+  if (bits >= 53) return v; // INT64 already lost precision in `r`; leave it be
+  const sign = 2 ** (bits - 1);
+  return v >= sign ? v - 2 ** bits : v;
+};
+
+/** Read a field's value, honouring its type's signedness. */
+const readTyped = (buf: Buffer, off: number, len: number, type: string, e: Order): number => {
+  const v = r(buf, off, len, e);
+  return SIGNED.has(type) ? signed(v, len) : v;
+};
+
 const core = (): GenExtension | undefined => GENERATED['xproto'];
 
 export function generatedForExtension(xname: string): GenExtension | undefined {
@@ -129,7 +150,7 @@ function renderList(
   for (let i = 0; i < Math.min(count, LIST_PREVIEW); i++) {
     const off = i * item.elem;
     if (off + item.elem > bytes.length) break;
-    const v = r(bytes, off, item.elem, order);
+    const v = readTyped(bytes, off, item.elem, item.type, order);
     if (item.type === 'ATOM') shown.push(v === 0 ? 'None' : (atomName?.(v) ?? String(v)));
     else if (item.resource) shown.push(v === 0 ? 'None' : fmtXid(v));
     else shown.push(String(v));
@@ -164,7 +185,7 @@ export function decodeGenerated(
 
   for (const f of msg.fields) {
     if (f.off + f.len > buf.length) break; // truncated message; stop cleanly
-    const raw = r(buf, f.off, f.len, order);
+    const raw = readTyped(buf, f.off, f.len, f.type, order);
     vals.set(f.name, raw);
 
     let value: string;
@@ -218,7 +239,7 @@ export function decodeGenerated(
       }
       if (it.kind === 'field') {
         if (off + it.len > buf.length) { partial = true; break; }
-        const raw = r(buf, off, it.len, order);
+        const raw = readTyped(buf, off, it.len, it.type, order);
         vals.set(it.name, raw);
         fields.push({
           name: it.name.replace(/_/g, '-'),
