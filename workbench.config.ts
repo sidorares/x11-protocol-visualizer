@@ -6,10 +6,10 @@
 // reason `src/ui` is out of the core `tsconfig`: they depend on the optional
 // react-x11 stack, and nothing the proxy ships imports them.
 //
-// x11vis's own palette is a fixed dark one (`T` in src/ui/controls.tsx), so
-// every story file declares `theme: 'dark'` — that only matters for the core
-// widgets a control wraps (Button, Select, Tabs), which follow the workshop's
-// scheme. Flip the workshop to Dark to see a panel as the app ships it.
+// x11vis follows the desktop's colour scheme (`PALETTE` + `DARK` in
+// src/ui/controls.tsx), so every story file declares `theme: 'both'` and the
+// workshop shows the light and the dark rendering side by side. Pin a file to
+// one while working on it if the pair is in the way.
 import { defineConfig } from '@react-x11/workbench';
 
 export default defineConfig({

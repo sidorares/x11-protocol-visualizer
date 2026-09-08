@@ -15,7 +15,7 @@ import { Icon, iconsAvailable } from '../src/ui/icons.js';
 import { T } from '../src/ui/controls.js';
 import { Ground, Specimen } from './ground.js';
 
-export default { title: 'Icons', theme: 'dark' };
+export default { title: 'Icons', theme: 'both' };
 
 /** Every icon the app actually uses, at the size it uses them. */
 const VOCABULARY = [

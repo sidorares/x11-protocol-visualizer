@@ -17,7 +17,7 @@ import { Button, Divider, Field, IconButton, Pill, T, TextField, type Variant } 
 import { Icon } from '../src/ui/icons.js';
 import { Ground, Specimen } from './ground.js';
 
-export default { title: 'Controls', theme: 'dark' };
+export default { title: 'Controls', theme: 'both' };
 
 const VARIANTS: Variant[] = ['solid', 'default', 'outline', 'ghost'];
 
@@ -36,7 +36,7 @@ export const buttons = () => (
     <Specimen label="small — the size dense rows use">
       {VARIANTS.map((v) => <Button key={v} variant={v} icon="play" label={v} small />)}
     </Specimen>
-    <Specimen label="accented — tints the icon; core owns the label's ink">
+    <Specimen label="accented — label and icon together; ignored on solid, whose fill is the accent">
       <Button icon="corner-down-right" label="response #12" variant="outline" accent={T.link} small />
       <Button icon="skip-forward" label="Skip" variant="outline" accent={T.danger} small />
       <Button icon="arrow-right" label="GetProperty — 6.0 ms" variant="ghost" accent={T.link} small />

@@ -16,6 +16,9 @@ X11 visualizer is itself an X11 client.
 request on the right, and the selected field's bytes marked in the hex
 dump](docs/img/x11vis.png)
 
+The window follows the desktop's colour scheme; the same session on a light
+desktop is [`docs/img/x11vis-light.png`](docs/img/x11vis-light.png).
+
 Above: a `GetProperty` is selected, so the right pane shows it as a call with
 its arguments, a link to the reply that answered it, and every decoded field.
 Picking the `property` field marks the four bytes that carry it — `17000000`,
@@ -324,9 +327,11 @@ clipboard contents and keystrokes, which is why `*.x11cap` is gitignored.
 Because the PNGs are committed, everything that would otherwise vary per run is
 pinned: the wall clock, the animation clock (react-x11 transitions the
 row-selection colour — read the pixels too early and you photograph a fade),
-the fonts (family resolution otherwise shells out to `fc-match`), and
-react-x11's palette, which follows the desktop unless told not to. Run it on
-a machine with Arial (macOS) or Liberation/DejaVu (Linux) installed.
+the fonts (family resolution otherwise shells out to `fc-match`), and the
+desktop's colour scheme — which the app follows, so it is passed per shot
+rather than read from the machine. That last one is why there are two PNGs:
+`x11vis.png` is a dark desktop, `x11vis-light.png` a light one. Run it on a
+machine with Arial (macOS) or Liberation/DejaVu (Linux) installed.
 
 ## The component workshop
 
@@ -348,9 +353,11 @@ the screenshot uses (`fixtures/demo-session.ts`), so a story shows what the app
 shows rather than a re-implementation that drifts from it. Selecting a file
 previews every state at once; a story with `args` gets a knobs panel.
 
-x11vis paints its own fixed dark palette, so the stories declare `theme:
-'dark'` and sit on the app's ground — flip the workshop to Dark to see a panel
-exactly as the app ships it.
+Every story sits on the app's own ground and inside the app's own
+`<ThemeProvider>` (`<Ground>` in `stories/ground.tsx`), so a control is
+previewed in the colours it actually wears. They declare `theme: 'both'`, which
+puts the light and the dark rendering side by side — the app follows the
+desktop, so a panel has two right answers and neither is the one to check.
 
 ## Layout
 

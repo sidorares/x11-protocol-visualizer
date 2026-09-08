@@ -16,7 +16,7 @@ import { FilterBar } from '../src/ui/App.js';
 import type { Category } from '../src/core/protocol/types.js';
 import { Ground } from './ground.js';
 
-export default { title: 'Filter bar', theme: 'dark', size: { width: 1180, height: 120 } };
+export default { title: 'Filter bar', theme: 'both', size: { width: 1180, height: 120 } };
 
 function Bar(props: {
   solo?: string | null;
