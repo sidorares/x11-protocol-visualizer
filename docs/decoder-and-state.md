@@ -89,6 +89,31 @@ Disambiguate on the first byte:
 - **`KeymapNotify` (code 11)** has **no** sequence number; bytes 1-31 are the keymap. Special-case it.
 - **XGE (code 35):** `extension(1)` at byte 1 is the owning extension's major opcode; `evtype(2)`, `length(4)`; total = `32 + length*4`. Needed for XI2 and Present events.
 
+#### Core events (2–34)
+Every core event is 32 bytes with a fixed layout, so the generated xcbproto
+tables decode all of it — but a layout cannot produce the line a reader scans,
+and a few of these events do not fit a layout at all. `protocol/events.ts`
+therefore runs *before* the generated pass and contributes:
+
+- **A summary per event** — `button=1 @(312,208) event=0x04800001 state=Shift`
+  rather than the generic `root=… event=… child=…` that every pointer event
+  would otherwise share.
+- **`ClientMessage`'s data union**, which xcbproto models as a `<union>` and the
+  generator gives up on. The 20 bytes are read per `format` (8/16/32), each
+  format-32 word gets its own span, and the words the message *type* says are
+  atoms (`WM_PROTOCOLS`'s first, `_NET_WM_STATE`'s second and third) resolve to
+  atom names.
+- **`KeymapNotify`'s bitmap** — bit *k* of byte *i* is keycode *i*·8+*k*, listed
+  as keycodes rather than 31 opaque bytes.
+- **The two flags packed into Enter/Leave's last byte** (same-screen, focus),
+  the button number as `Button1`, `MotionNotify`'s `Hint`, and the major opcode
+  of the request a `GraphicsExposure` / `NoExposure` answers, named.
+
+`ConfigureRequest` reports only the parameters its value-mask actually asks for:
+the rest of the fixed layout is whatever the server left there. Coordinates are
+`INT16` and genuinely negative (a pointer just outside its window), so the
+generated reader honours the signed wire types rather than printing `65535`.
+
 ### 3.4 Anti-desync rules
 - Never advance the relay based on decode success; frame using only lengths, forward raw. A **decode** exception marks the message `undecoded` but framing already knows the boundary from the length fields.
 - If a length is implausible (e.g. exceeds `max-request-length` before BIG-REQUESTS, or a reply claims more than buffered), wait for more bytes; only flag an error if the stream truly violates framing.

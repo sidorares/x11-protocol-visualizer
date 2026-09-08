@@ -74,6 +74,15 @@ Working and tested against live XQuartz:
   `PICTFORMAT` ids resolve to `Direct depth24 R8G8B8` (harvested from
   QueryPictFormats). Applies to CreateWindow/ChangeWindowAttributes,
   CreateGC/ChangeGC, and RENDER CreatePicture/ChangePicture.
+- **Core events** — all of codes 2–34 decode to fields with spans and a summary
+  built around what identifies the event: `ButtonPress · button=1 @(312,208)
+  event=0x04800001 state=Shift`, `ConfigureNotify · window=0x0480000a
+  300×200+10-20`, `PropertyNotify · window=0x04800001 _NET_WM_NAME NewValue`.
+  `ClientMessage`'s data union is read per `format`, with the words its type
+  says are atoms resolved by name (`data=[WM_DELETE_WINDOW, …]`);
+  `KeymapNotify`'s bitmap is listed as the keycodes held down; the request that
+  caused a `GraphicsExposure` is named from its major opcode; and
+  `ConfigureRequest` reports only the parameters its value-mask asks for.
 - **Extensions** (a data-driven registry — add one per file, see below):
   - **RENDER**: ~30 requests with resource links, color swatches, and a
     QueryVersion reply; RENDER errors.
@@ -363,7 +372,7 @@ desktop, so a panel has two right answers and neither is the one to check.
 
 ```
 src/core/                proxy, framing, state machines, protocol tables (tested core)
-src/core/protocol/       core request/reply decoders + tables
+src/core/protocol/       core request/reply/event decoders + tables
 src/core/protocol/extensions/   one file per extension (render.ts, xinput.ts, …)
 src/ui/                  react-x11 application (Table / Tree / Code / hex)
 src/cli.ts               entry point: proxy + UI-or-headless

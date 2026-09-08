@@ -250,6 +250,28 @@ function session(): Step[] {
     return b;
   }
 
+  /**
+   * A shift-click in the mapped window — the event the CreateWindow above
+   * asked for by putting ButtonPress in its event-mask.
+   */
+  function buttonPress(seq: number): Buffer {
+    const b = Buffer.alloc(32);
+    b[0] = 4; // ButtonPress
+    b[1] = 1; // detail = Button1
+    b.writeUInt16LE(seq, 2);
+    b.writeUInt32LE(0x00b4c1d2, 4); // server time
+    b.writeUInt32LE(ROOT, 8);
+    b.writeUInt32LE(WID, 12);
+    b.writeUInt32LE(0, 16); // child = None
+    b.writeInt16LE(412, 20);
+    b.writeInt16LE(268, 22);
+    b.writeInt16LE(312, 24);
+    b.writeInt16LE(208, 26);
+    b.writeUInt16LE(0x0001, 28); // state = Shift
+    b[30] = 1; // same-screen
+    return b;
+  }
+
   function badWindow(seq: number, bad: number): Buffer {
     const b = Buffer.alloc(32);
     b[0] = 0; // error
@@ -315,6 +337,7 @@ function session(): Step[] {
     req(request(8, 0, u32(WID)), 2),
 
     s2c(expose(seq()), 5),
+    s2c(buttonPress(seq()), 8),
 
     // A frame: recolour, composite the off-screen picture over the window,
     // blit, and release what the frame allocated.

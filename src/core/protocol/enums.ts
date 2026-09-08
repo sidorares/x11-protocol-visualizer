@@ -84,3 +84,37 @@ export const GC_BITS: ValueBit[] = [
   { bit: 0x200000, name: 'dashes' },
   { bit: 0x400000, name: 'arc-mode', enum: ARC_MODE },
 ];
+
+/** SETofKEYBUTMASK — the modifier/button state carried by input events. */
+export const KEY_BUT_MASK: Record<number, string> = {
+  0x0001: 'Shift', 0x0002: 'Lock', 0x0004: 'Control', 0x0008: 'Mod1', 0x0010: 'Mod2',
+  0x0020: 'Mod3', 0x0040: 'Mod4', 0x0080: 'Mod5',
+  0x0100: 'Button1', 0x0200: 'Button2', 0x0400: 'Button3', 0x0800: 'Button4', 0x1000: 'Button5',
+};
+
+/** The `detail` of an Enter/Leave/Focus event. */
+export const NOTIFY_DETAIL: Record<number, string> = {
+  0: 'Ancestor', 1: 'Virtual', 2: 'Inferior', 3: 'Nonlinear', 4: 'NonlinearVirtual',
+  5: 'Pointer', 6: 'PointerRoot', 7: 'None',
+};
+/** The `mode` of an Enter/Leave/Focus event. */
+export const NOTIFY_MODE: Record<number, string> = { 0: 'Normal', 1: 'Grab', 2: 'Ungrab', 3: 'WhileGrabbed' };
+/** MotionNotify `detail` — a Hint is the compressed form asked for by PointerMotionHint. */
+export const MOTION_DETAIL: Record<number, string> = { 0: 'Normal', 1: 'Hint' };
+export const VISIBILITY: Record<number, string> = { 0: 'Unobscured', 1: 'PartiallyObscured', 2: 'FullyObscured' };
+export const PROPERTY_STATE: Record<number, string> = { 0: 'NewValue', 1: 'Delete' };
+export const COLORMAP_STATE: Record<number, string> = { 0: 'Uninstalled', 1: 'Installed' };
+export const PLACE: Record<number, string> = { 0: 'OnTop', 1: 'OnBottom' };
+export const MAPPING_REQUEST: Record<number, string> = { 0: 'Modifier', 1: 'Keyboard', 2: 'Pointer' };
+export const STACK_MODE: Record<number, string> = { 0: 'Above', 1: 'Below', 2: 'TopIf', 3: 'BottomIf', 4: 'Opposite' };
+
+/**
+ * BITMASKofCONFIGWINDOW — which of ConfigureWindow's / ConfigureRequest's
+ * parameters the client asked to change. Unlike CW and GC this is not a
+ * LISTofVALUE: in the request the values are packed after the mask, but in the
+ * *event* they sit at fixed offsets and the mask only says which ones matter.
+ */
+export const CONFIG_WINDOW: Record<number, string> = {
+  0x01: 'x', 0x02: 'y', 0x04: 'width', 0x08: 'height',
+  0x10: 'border-width', 0x20: 'sibling', 0x40: 'stack-mode',
+};
