@@ -179,10 +179,12 @@ makes it the cheap check after touching a story.
   selecting the file previews all of them at once. `story(render, { args })`
   adds a knobs panel — reach for it when the state space is worth sweeping, not
   by default.
-- **Declare `theme: 'dark'`.** x11vis's palette is fixed and dark, but the core
-  widgets a control wraps (Button, Select, Tabs) follow the workshop's scheme.
-  `stories/ground.tsx` puts the app's own ground under a story, for the same
-  reason the screenshot pins `colorScheme: 'dark'`.
+- **Wrap a story in `<Ground>`.** It carries both halves of the app's look: the
+  window's own ground colour, and the `<ThemeProvider value={PALETTE}>` that
+  `App.tsx` puts around the window. Without the provider a `<Button>` or a
+  `<Select>` in a story resolves against the *workshop's* palette and is
+  previewed in colours it never wears in the app. Declaring `theme: 'dark'` on
+  the story file as well keeps the workshop's own chrome in the same scheme.
 - **A whole-window story is out of scope by design** — the workshop previews
   components, and a story whose root is a `<window>` throws. `<BreakOnDialog>`
   is the edge case that works: core's `<Dialog>` is a managed popup, so it
@@ -215,9 +217,9 @@ per run makes the diff useless as a signal that something visibly changed:
   after every interaction; `settle()` in the script does both.
 - **The fonts** — passed explicitly, or family resolution shells out to
   `fc-match` and answers differently on every machine.
-- **react-x11's palette** — `colorScheme: 'dark'`. The app's own tokens are
-  fixed, but core widgets (buttons, menu bar) follow the desktop otherwise, and
-  would come out light inside x11vis's dark shell on a light desktop.
+- **react-x11's palette** — `colorScheme: 'dark'`. `<App>` pins its own scheme
+  now (see *Design tokens* below), so this only seeds the harness's appearance
+  store; it is kept so a shot never depends on the developer's desktop.
 
 The traffic is **synthesized, not recorded**: `fixtures/demo-session.ts` is
 hand-built X11 bytes fed through the real `ConnectionCapture`, so the decoding
@@ -229,9 +231,55 @@ middle stays correct — and that the workbench stories read the same session, s
 a message removed from it takes a story's `demoMessage()` lookup with it (which
 throws, by design, naming what the session does contain).
 
+## Design tokens
+
+**Every colour in the UI is named once, in `PALETTE` (`src/ui/controls.tsx`),
+and nowhere else.** A hex literal anywhere under `src/ui` or `stories/` is a
+bug — `grep -n '#[0-9a-fA-F]\{3,8\}' src/ui/*.tsx stories/*.tsx` should only
+ever hit that one object and a couple of prose comments.
+
+`PALETTE` is not a private lookup table: it is a **react-x11 theme**, handed to
+core by the `<ThemeProvider value={PALETTE} colorScheme="dark">` that wraps the
+window. That matters because x11vis is two widget layers in one window — its
+own `<box>`es, and core's `MenuBar`/`Select`/`Button`/`Dialog` plus every
+`@react-x11/components` widget. Core's layer resolves against the **desktop's**
+palette unless an app says otherwise, so before the provider existed the app
+came up with light widgets inside a dark shell on any light desktop. The
+screenshot script and the stories each pinned `colorScheme: 'dark'` to hide it;
+the shipping app pinned nothing.
+
+So:
+
+- **Use core's token name where core has one** — `textMuted`, not `dim`;
+  `danger`, not `err`; `background`/`surface`, not `bg`/`panel`. A colour under
+  a private name is a colour core's widgets cannot see, which is how the two
+  layers drift apart. The handful with no core equivalent (`panelAlt`, `hot`,
+  `held`, `imageMat`, `control`, `padXsm`) are grouped at the bottom of the
+  object and commented as such.
+- **Don't name what core can derive.** Unnamed tokens fall back to core's
+  `DarkTheme`, and the derived ones — the pressed step of each fill, the ink
+  that goes on it — are better computed than typed (`resolveTheme` in
+  react-x11's `palette.js`).
+- **`'$token'` works in any style value**, resolved against the nearest theme:
+  `fontFamily: '$monoFamily'`, `linear-gradient($accent, $accentActive)`. Reach
+  for it in a style that is hoisted out of render, or where the value should
+  follow the theme rather than this module's copy of it; `T.textMuted` reads
+  the same object and is fine everywhere else.
+
 ## react-x11 gotchas (hard-won)
 
 - `cursor` is a **style** prop: `<box style={{ cursor: 'pointer' }}>`.
+- **Don't pass `globalMenu={false}` to `<MenuBar>`.** Where the desktop draws
+  the menu bar — the macOS bar under the cocoa backend, a dbusmenu panel on
+  Linux — it should, and `<MenuBar>` renders nothing in the window. The flag
+  had pinned the bar in-window on every desktop, which is why the menus stayed
+  in the frame on macOS. It degrades on its own: `useGlobalMenu` is false until
+  a transport proves otherwise, so XQuartz, a bare startx and the headless
+  screenshot all still get the in-window bar.
+- **Trailing whitespace is trimmed out of a text run's advance** — `'ab '`
+  measures exactly as wide as `'ab'`, and a no-break space is trimmed the same
+  way (measured, both). A column of `<text>` cells that has to line up needs
+  `paddingRight`, not a space; see `HEX_GAP` in `App.tsx`.
 - Files excluded from `tsconfig` need `// @jsxRuntime automatic` +
   `// @jsxImportSource react`, or you get "React is not defined".
 - `ctx.putImageData` **ignores the canvas transform** (spec-correct). `DrawInfo`

@@ -32,7 +32,7 @@ function Pane({ name }: { name?: string }) {
   return (
     <box style={{
       flexDirection: 'column', width: 460, height: 660,
-      backgroundColor: T.panel, borderColor: T.border, borderWidth: 1,
+      backgroundColor: T.surface, borderColor: T.border, borderWidth: 1,
     }}>
       <Detail
         message={message}

@@ -54,7 +54,7 @@ export const shortFinalRow = () => (
 /** Past 256 bytes the block stops and says how much it did not draw. */
 export const truncated = () => (
   <Ground>
-    <text style={{ color: T.dim }}>{`${huge.length} bytes on the wire`}</text>
+    <text style={{ color: T.textMuted }}>{`${huge.length} bytes on the wire`}</text>
     <HexView bytes={huge} activeSpan={null} />
   </Ground>
 );

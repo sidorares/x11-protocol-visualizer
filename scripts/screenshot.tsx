@@ -72,9 +72,10 @@ const HEIGHT = 780;
 
 // --- fonts -----------------------------------------------------------------
 
-// The UI is monospace throughout (`App.tsx` sets it on the root window), but
-// register a proportional family too so any core widget that asks for one gets
-// a real answer rather than a `fc-match` lottery.
+// Both faces the app's palette names (`fontFamily` / `monoFamily` in
+// `controls.tsx`): proportional for the UI, monospace for the hex dump and the
+// code blocks. Registered explicitly so family resolution is not an `fc-match`
+// lottery that answers differently on every machine.
 const MONO = [
   '/System/Library/Fonts/Supplemental/Courier New.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
@@ -120,9 +121,10 @@ async function main() {
       monospace: pick(MONO, 'monospace'),
       'sans-serif': pick(SANS, 'sans-serif'),
     },
-    // react-x11's own palette follows the desktop; the app's does not. Without
-    // the pin, core widgets (buttons, the menu bar) would come out light on a
-    // light desktop inside x11vis's dark shell.
+    // Belt and braces: `<App>` now pins its own scheme through the
+    // `<ThemeProvider>` it wraps the window in, so this only decides what the
+    // *test harness* seeds the appearance store with. Kept so a shot never
+    // depends on the developer's desktop even for the frame around the window.
     colorScheme: 'dark',
   } as Parameters<typeof renderX11>[1]);
 
