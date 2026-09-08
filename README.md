@@ -227,6 +227,20 @@ DISPLAY=127.0.0.1:1 xdpyinfo
 The proxy forwards to your real `$DISPLAY`; the UI renders to that same real
 display, so its own drawing traffic is **not** self-captured.
 
+On macOS the UI window is drawn by **AppKit** rather than by XQuartz — react-x11's
+native Cocoa backend, which also puts x11vis's menus on the system menu bar
+instead of in the window. That needs `@windowkit/appkit`, which npm installs for
+you on a mac; without it, `auto` falls back to X11 so an XQuartz setup keeps
+working. `--ui-backend x11` forces the old behaviour, and `--ui-backend cocoa`
+makes the bridge a requirement rather than a preference:
+
+```bash
+npm start -- --ui-backend cocoa
+```
+
+The proxy itself is unaffected either way — it is an X11 proxy on every
+platform, and only the visualizer's own window changes.
+
 ### Options
 
 ```
@@ -234,7 +248,9 @@ display, so its own drawing traffic is **not** self-captured.
 -d, --display <s>     Upstream X server DISPLAY (default: $DISPLAY)
     --record <file>   Record the session to <file> (.x11cap)
     --no-ui           Headless: log to console, don't open the UI
-    --ui-display <s>  DISPLAY for the UI window (default: $DISPLAY)
+    --ui-display <s>  DISPLAY for the UI window (default: $DISPLAY); naming
+                      one selects the X11 backend
+    --ui-backend <b>  How the UI window is drawn: auto (default), x11, cocoa
 -o, --open <file>     Open a saved .x11cap for offline inspection
 -u, --unix <n>        Also listen on /tmp/.X11-unix/X<n> (DISPLAY=:<n>)
     --intercept       Enable breakpoints / fault injection

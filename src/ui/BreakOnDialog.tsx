@@ -88,7 +88,7 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
       gap: 5, flexGrow: 1, minHeight: 0,
     }}>
       {predicates.length === 0 && (
-        <text style={{ color: C.dim }}>
+        <text style={{ color: C.textMuted }}>
           {`No conditions — the rule fires on every ${entry.shortName}. Add one to narrow it.`}
         </text>
       )}
@@ -126,7 +126,7 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
           style={{ flexGrow: 1, minHeight: 0 }}
         />
       </box>
-      <text style={{ color: C.dim, textWrap: 'nowrap' }}>
+      <text style={{ color: C.textMuted, textWrap: 'nowrap' }}>
         {'kind · msg.name · msg.f.<param> · msg.text.<param> · request.f.<param> · atom(name)'}
       </text>
     </box>
@@ -145,12 +145,12 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
           <Button label={`Add ${action} rule`} variant="solid" onClick={create} disabled={!entry} />
         </box>
       }
-      style={{ backgroundColor: C.bg }}
+      style={{ backgroundColor: C.background }}
     >
       <box style={{ flexDirection: 'row', gap: 10, flexGrow: 1 }}>
         {/* Catalog */}
         <box style={{ flexDirection: 'column', width: 320, gap: 4 }}>
-          <text style={{ color: C.dim }}>Protocol catalog</text>
+          <text style={{ color: C.textMuted }}>Protocol catalog</text>
           <box style={{ flexGrow: 1, borderColor: C.border, borderWidth: 1, backgroundColor: C.panelAlt }}>
             <Tree
               items={catalog}
@@ -169,17 +169,17 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
         {/* Editor */}
         <box style={{ flexDirection: 'column', flexGrow: 1, minHeight: 0, gap: 6 }}>
           {!entry ? (
-            <text style={{ color: C.dim }}>Pick a request, response, event or error on the left.</text>
+            <text style={{ color: C.textMuted }}>Pick a request, response, event or error on the left.</text>
           ) : (
             <>
               <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <text style={{ color: C.text, fontWeight: 'bold' }}>{entry.name}</text>
-                <text style={{ color: C.dim }}>{entry.kind}</text>
-                {entry.partial && <text style={{ color: C.warn }}>· variable-length tail not decoded</text>}
+                <text style={{ color: C.textMuted }}>{entry.kind}</text>
+                {entry.partial && <text style={{ color: C.warning }}>· variable-length tail not decoded</text>}
               </box>
 
               <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <text style={{ color: C.dim }}>Action</text>
+                <text style={{ color: C.textMuted }}>Action</text>
                 <Select
                   value={action}
                   options={[
@@ -194,7 +194,7 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
                   icon={once ? 'square-check' : 'square'}
                   label="once"
                   variant={once ? 'outline' : 'ghost'}
-                  accent={once ? C.link : C.dim}
+                  accent={once ? C.link : C.textMuted}
                   small
                   onClick={() => setOnce((v) => !v)}
                 />
@@ -204,7 +204,7 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
                 value={tab}
                 onValueChange={(change) => setTab(change.value)}
                 size="sm"
-                ground={C.bg}
+                ground={C.background}
                 style={{ flexGrow: 1, minHeight: 0 }}
               >
                 <TabsList>

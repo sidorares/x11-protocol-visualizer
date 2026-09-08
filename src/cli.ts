@@ -27,6 +27,7 @@ interface Args {
   json: boolean;
   ui: boolean;
   uiDisplay: string | undefined;
+  uiBackend: 'auto' | 'x11' | 'cocoa';
   network: string;
   unixDisplay: number | undefined;
   intercept: boolean;
@@ -46,7 +47,13 @@ function parseArgs(argv: string[]): Args {
     stats: undefined,
     json: false,
     ui: true,
-    uiDisplay: process.env.DISPLAY,
+    // Deliberately *not* defaulted to `$DISPLAY`. react-x11 treats an explicit
+    // `display` as choosing the X11 backend, so defaulting it here pinned the
+    // UI to X11 on every machine — including a mac that could have drawn the
+    // window natively. Unset means "let the backend decide", and the X11
+    // backend still reads `$DISPLAY` itself.
+    uiDisplay: undefined,
+    uiBackend: 'auto',
     network: 'none',
     unixDisplay: undefined,
     intercept: false,
@@ -92,6 +99,15 @@ function parseArgs(argv: string[]): Args {
       case '--ui-display':
         a.uiDisplay = next();
         break;
+      case '--ui-backend': {
+        const b = next();
+        if (b !== 'auto' && b !== 'x11' && b !== 'cocoa') {
+          process.stderr.write(`x11vis: unknown --ui-backend ${JSON.stringify(b)} — expected auto, x11 or cocoa\n`);
+          process.exit(2);
+        }
+        a.uiBackend = b;
+        break;
+      }
       case '--intercept':
         a.intercept = true;
         break;
@@ -142,7 +158,12 @@ Options:
       --stats <file>    Print protocol statistics and hotspots for a .x11cap
       --json            Machine-readable output for --stats and --diff
       --no-ui           Headless: log to console, do not open the react-x11 UI
-      --ui-display <s>  DISPLAY for the UI window (default: $DISPLAY, bypassing the proxy)
+      --ui-display <s>  DISPLAY for the UI window (default: $DISPLAY, bypassing the
+                        proxy). Naming one selects the X11 backend.
+      --ui-backend <b>  How the UI window is drawn: auto (default), x11, or
+                        cocoa (macOS native, needs @windowkit/appkit). auto is
+                        cocoa on macOS where the bridge is installed and x11
+                        everywhere else.
       --intercept       Enable breakpoints / fault injection (forwards whole
                         messages instead of raw chunks; off by default)
       --break <name>    Hold messages whose name contains <name> (implies
@@ -341,17 +362,26 @@ async function main() {
           s: CaptureStore,
           o: {
             display?: string;
+            backend?: 'auto' | 'x11' | 'cocoa';
             network: NetworkEmulator;
             interceptor?: Interceptor;
             onQuit?: () => void;
             onSave?: () => string;
           },
-        ) => Promise<unknown>;
+        ) => Promise<{ backend: 'x11' | 'cocoa'; display?: string }>;
       };
       const uiEntry = './ui/index.js';
       const mod = (await import(uiEntry)) as UIModule;
-      await mod.startUI(store, {
+      // A contradiction worth naming rather than resolving silently: cocoa
+      // opens no X connection, so the display would simply be dropped.
+      if (args.uiDisplay && args.uiBackend === 'cocoa') {
+        process.stderr.write(
+          `${ANSI.dim}[x11vis]${ANSI.reset} --ui-display ${args.uiDisplay} ignored: the cocoa backend opens no X connection\n`,
+        );
+      }
+      const ui = await mod.startUI(store, {
         display: args.uiDisplay,
+        backend: args.uiBackend,
         network: handle.network,
         interceptor,
         onQuit: () => void shutdown(),
@@ -363,7 +393,15 @@ async function main() {
         },
       });
       uiActive = true;
-      process.stderr.write(`${ANSI.dim}[x11vis]${ANSI.reset} react-x11 UI open on ${args.uiDisplay}\n`);
+      // Report what actually came up, not what was asked for: `--ui-backend
+      // auto` on a mac without the bridge silently falls back to X11, and the
+      // old line printed `$DISPLAY` unconditionally — a display the cocoa
+      // backend never opens.
+      process.stderr.write(
+        ui.backend === 'cocoa'
+          ? `${ANSI.dim}[x11vis]${ANSI.reset} react-x11 UI open (cocoa, native macOS window)\n`
+          : `${ANSI.dim}[x11vis]${ANSI.reset} react-x11 UI open on ${ui.display ?? '$DISPLAY'} (x11)\n`,
+      );
     } catch (err) {
       process.stderr.write(
         `${ANSI.dim}[x11vis]${ANSI.reset} UI unavailable (${(err as Error).message.split('\n')[0]}); running headless.\n`,

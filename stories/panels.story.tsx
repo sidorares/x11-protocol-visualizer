@@ -30,7 +30,7 @@ function Pane({ children, height = 660 }: { children: ReactNode; height?: number
   return (
     <box style={{
       flexDirection: 'column', width: 460, height,
-      backgroundColor: T.panel, borderColor: T.border, borderWidth: 1,
+      backgroundColor: T.surface, borderColor: T.border, borderWidth: 1,
     }}>
       {children}
     </box>

@@ -38,7 +38,7 @@ export const buttons = () => (
     </Specimen>
     <Specimen label="accented — tints the icon; core owns the label's ink">
       <Button icon="corner-down-right" label="response #12" variant="outline" accent={T.link} small />
-      <Button icon="skip-forward" label="Skip" variant="outline" accent={T.err} small />
+      <Button icon="skip-forward" label="Skip" variant="outline" accent={T.danger} small />
       <Button icon="arrow-right" label="GetProperty — 6.0 ms" variant="ghost" accent={T.link} small />
     </Specimen>
   </Ground>
@@ -94,20 +94,20 @@ export const iconButtons = () => (
 export const pills = () => (
   <Ground>
     <Specimen label="category counts, as the toolbar shows them">
-      <Pill label="request 17" color="#4aa3ff" />
-      <Pill label="reply 4" color="#3ecf8e" />
-      <Pill label="event 1" color="#e3b341" />
-      <Pill label="error 1" color="#ff5c5c" />
+      <Pill label="request 17" color={T.info} />
+      <Pill label="reply 4" color={T.success} />
+      <Pill label="event 1" color={T.warning} />
+      <Pill label="error 1" color={T.danger} />
     </Specimen>
     <Specimen label="muted — the category is hidden, and says so">
-      <Pill label="event 1" color="#e3b341" muted icon="eye-off" />
-      <Pill label="error 1" color="#ff5c5c" muted icon="eye-off" />
+      <Pill label="event 1" color={T.warning} muted icon="eye-off" />
+      <Pill label="error 1" color={T.danger} muted icon="eye-off" />
     </Specimen>
     <Specimen label="removable — a filter chip, and a rule that threw">
       <Pill label="“GetProperty”" color={T.text} onRemove={() => {}} />
       <Pill label="uses 0x04800001" color={T.link} onRemove={() => {}} />
-      <Pill label="break RENDER:Composite ·3" color={T.warn} onRemove={() => {}} />
-      <Pill label="drop MapWindow" color={T.err} icon="triangle-alert" onRemove={() => {}} />
+      <Pill label="break RENDER:Composite ·3" color={T.warning} onRemove={() => {}} />
+      <Pill label="drop MapWindow" color={T.danger} icon="triangle-alert" onRemove={() => {}} />
     </Specimen>
   </Ground>
 );
@@ -119,11 +119,11 @@ export const textField = story(
     return (
       <Ground>
         <Specimen label="empty, then whatever you type">
-          <Icon name="search" size={13} color={T.dim} />
+          <Icon name="search" size={13} color={T.textMuted} />
           <TextField value={value} placeholder={args.placeholder} width={args.width} onChange={setValue} />
         </Specimen>
         <Specimen label="value">
-          <text style={{ color: T.dim }}>{value ? `“${value}”` : '(empty)'}</text>
+          <text style={{ color: T.textMuted }}>{value ? `“${value}”` : '(empty)'}</text>
         </Specimen>
       </Ground>
     );
@@ -146,13 +146,13 @@ export const controlSet = () => {
       <box style={{
         flexDirection: 'row', alignItems: 'center', gap: 12,
         paddingLeft: 10, paddingRight: 10, paddingTop: 6, paddingBottom: 6,
-        backgroundColor: T.panel, borderColor: T.border, borderWidth: 1,
+        backgroundColor: T.surface, borderColor: T.border, borderWidth: 1,
       }}>
         <text style={{ fontWeight: 'bold', color: T.text }}>x11vis</text>
-        <text style={{ color: T.dim }}>25 msgs · 1 conns</text>
+        <text style={{ color: T.textMuted }}>25 msgs · 1 conns</text>
         <Divider />
-        <Pill label="request 17" color="#4aa3ff" />
-        <Pill label="reply 4" color="#3ecf8e" />
+        <Pill label="request 17" color={T.info} />
+        <Pill label="reply 4" color={T.success} />
         <box style={{ flexGrow: 1 }} />
         <Field label="Filter">
           <TextField value={query} placeholder="name/summary…" width={180} onChange={setQuery} />

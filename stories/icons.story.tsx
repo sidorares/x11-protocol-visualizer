@@ -28,13 +28,13 @@ const VOCABULARY = [
 export const gallery = () => (
   <Ground>
     {!iconsAvailable && (
-      <text style={{ color: T.err }}>lucide-static is not installed — every icon below is an empty box.</text>
+      <text style={{ color: T.danger }}>lucide-static is not installed — every icon below is an empty box.</text>
     )}
     <box style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 8, width: 520 }}>
       {VOCABULARY.map((name) => (
         <box key={name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, width: 160 }}>
           <Icon name={name} size={14} color={T.text} />
-          <text style={{ color: T.dim, textWrap: 'nowrap' }}>{name}</text>
+          <text style={{ color: T.textMuted, textWrap: 'nowrap' }}>{name}</text>
         </box>
       ))}
     </box>
@@ -45,16 +45,16 @@ export const gallery = () => (
 export const inks = () => (
   <Ground>
     <Specimen label="tinted with a token">
-      <Icon name="triangle-alert" size={16} color={T.err} />
-      <Icon name="triangle-alert" size={16} color={T.warn} />
-      <Icon name="triangle-alert" size={16} color={T.ok} />
+      <Icon name="triangle-alert" size={16} color={T.danger} />
+      <Icon name="triangle-alert" size={16} color={T.warning} />
+      <Icon name="triangle-alert" size={16} color={T.success} />
       <Icon name="triangle-alert" size={16} color={T.link} />
-      <Icon name="triangle-alert" size={16} color={T.dim} />
+      <Icon name="triangle-alert" size={16} color={T.textMuted} />
     </Specimen>
     <Specimen label="no colour — inherits, which is how an icon in a button takes the button's ink">
-      <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8, color: T.ok }}>
+      <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8, color: T.success }}>
         <Icon name="play" size={16} />
-        <text style={{ color: T.ok }}>inside a green box</text>
+        <text style={{ color: T.success }}>inside a green box</text>
       </box>
     </Specimen>
     <Specimen label="sizes — 11 in a pill, 12–14 in a button or a bar">
@@ -76,7 +76,7 @@ export const icon = story(
     args: { name: 'circle-plus', size: 40, color: T.text },
     controls: {
       size: { type: 'number', min: 8, max: 96 },
-      color: [T.text, T.dim, T.link, T.ok, T.warn, T.err],
+      color: [T.text, T.textMuted, T.link, T.success, T.warning, T.danger],
     },
   },
 );

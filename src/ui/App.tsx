@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { MenuBar, SplitPane, Select, Tooltip, type MenuItem } from 'react-x11';
+import { MenuBar, SplitPane, Select, ThemeProvider, Tooltip, type MenuItem } from 'react-x11';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@react-x11/components/tabs';
 import { Table } from '@react-x11/components/table';
 import { Tree } from '@react-x11/components/tree';
@@ -30,12 +30,15 @@ import { Icon } from './icons.js';
 // `const C = T` at module scope) so that under hot reload — where named
 // imports become live bindings initialized after module evaluation — `C`
 // is read lazily at render time instead of capturing undefined.
-import { Button, Divider, IconButton, Pill, T, T as C, TextField } from './controls.js';
+import { Button, Divider, IconButton, PALETTE, Pill, T, T as C, TextField } from './controls.js';
+// The status family, under the names the packet list means. A reply is the
+// green one and an error is the red one, so there is no second green and no
+// second red anywhere in the app.
 const CAT_COLOR: Record<Category, string> = {
-  request: '#4aa3ff', reply: '#3ecf8e', error: '#ff5c5c', event: '#e3b341',
-  'setup-request': '#8a94a6', 'setup-reply': '#8a94a6',
+  request: C.info, reply: C.success, error: C.danger, event: C.warning,
+  'setup-request': C.textMuted, 'setup-reply': C.textMuted,
 };
-const catColor = (c: Category) => CAT_COLOR[c] ?? C.dim;
+const catColor = (c: Category) => CAT_COLOR[c] ?? C.textMuted;
 
 // One glyph per kind — encodes category *and* direction (▸ out, others in), so
 // the row needs no separate direction column and no redundant colour badges.
@@ -46,6 +49,27 @@ const KIND_GLYPH: Record<string, string> = {
 const MAX_ROWS = 5000;
 /** Bytes shown in the hex block; the rest is summarised as a trailing count. */
 const HEX_MAX_BYTES = 256;
+/**
+ * The gutter after each byte cell, in pixels.
+ *
+ * A gutter and not a space: text layout drops trailing whitespace from a
+ * run's advance, so the `'xx '` these cells used to hold measured exactly as
+ * wide as `'xx'` and every byte butted against the next (a no-break space is
+ * trimmed the same way — measured). `paddingRight` is layout rather than
+ * text, so it survives, it does not depend on the face having a space of the
+ * right width, and a highlighted run stays one continuous bar because a
+ * background fills a node's padding.
+ */
+const HEX_GAP = 4;
+/**
+ * …and the size the block is set in.
+ *
+ * Smaller than the body text on purpose, and not a taste call: 16 bytes, a
+ * 4-digit offset and the ASCII gutter are 48 mono columns, and at the theme's
+ * 14px they do not fit the detail pane. The old block only appeared to fit
+ * because its inter-byte spaces measured as nothing.
+ */
+const HEX_FONT_SIZE = 11;
 /** …which is this many 16-byte rows, and so a known natural height. */
 // Not exported, and neither is anything else here that is not a component:
 // a module whose exports are *all* components is a self-accepting Fast
@@ -358,77 +382,92 @@ export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
         followRef.current = ev.scrollY + ev.viewportHeight >= ev.contentHeight - 6;
       }}
       styles={{ cell: { textWrap: 'nowrap', textOverflow: 'ellipsis' } }}
-      renderEmpty={() => <text style={{ color: C.dim, padding: 12 }}>{filtersActive ? 'No messages match the current filter.' : 'Waiting for traffic…'}</text>}
+      renderEmpty={() => <text style={{ color: C.textMuted, padding: 12 }}>{filtersActive ? 'No messages match the current filter.' : 'Waiting for traffic…'}</text>}
       rowHeight={22} virtual="auto" style={{ flexGrow: 1 }}
     />
   );
 
   return (
-    <window title="x11vis — X11 protocol visualizer" width={1240} height={780}
-      style={{ flexDirection: 'column', backgroundColor: C.bg, color: C.text }}>
-      <MenuBar menus={menus} globalMenu={false} style={{ backgroundColor: C.panel }} />
-      <Toolbar total={all.length} shown={rows.length} counts={counts} conns={store.connections.length}
-        paused={paused} mutedCats={mutedCats} onToggleCat={toggleCat} query={query} onQuery={setQuery}
-        profileId={profileId} onProfile={setProfile} />
-      {interceptor && (
-        <BreakOnDialog
-          open={breakDialog}
-          atoms={knownAtoms}
-          onClose={() => setBreakDialog(false)}
-          onCreate={(r: Omit<Rule, 'id' | 'hits'>) => interceptor.addRule(r)}
-        />
-      )}
-      {interceptor && (rules.length > 0 || held.length > 0) && (
-        <InterceptBar
-          rules={rules}
-          held={held}
-          queued={queued}
-          onDropHead={() => interceptor.dropHead()}
-          onToggle={(id, on) => interceptor.setEnabled(id, on)}
-          onRemove={(id) => interceptor.removeRule(id)}
-          onStep={() => interceptor.step()}
-          onContinue={() => interceptor.resumeAll()}
-          onInspect={(id) => jumpTo(id)}
-          onAdd={() => setBreakDialog(true)}
-        />
-      )}
-      {filtersActive && (
-        <FilterBar solo={solo} mutedCats={mutedCats} mutedNames={mutedNames} query={q}
-          xidFilter={xidFilter}
-          onClearSolo={() => setSolo(null)} onToggleCat={toggleCat} onToggleName={toggleName}
-          onClearQuery={() => setQuery('')} onClearXid={() => setXidFilter(null)} onClearAll={clearFilters} />
-      )}
-      <SplitPane direction="row" defaultSize={780} min={360} minSecond={340} style={{ flexGrow: 1 }}>
-        {showConsole ? (
-          <SplitPane direction="column" defaultSize={540} min={160} minSecond={72}>
-            {table}
-            <ConsolePane store={store} />
-          </SplitPane>
-        ) : table}
-        <box style={{ flexDirection: 'column', flexGrow: 1, backgroundColor: C.panel, borderColor: C.border, borderWidth: 1 }}>
-          {/* lazyMount + unmountOnExit keep the old behaviour of building only
-              the visible panel — StatsPanel walks every message, so it should
-              not be kept live behind the Detail tab. */}
-          <Tabs defaultValue="detail" size="sm" ground={C.panel} lazyMount unmountOnExit>
-            <box style={{ paddingLeft: 6, paddingTop: 4, paddingRight: 6 }}>
-              <TabsList>
-                <TabsTrigger value="detail">Detail</TabsTrigger>
-                <TabsTrigger value="stats">Statistics</TabsTrigger>
-              </TabsList>
-            </box>
-            <TabsContent value="detail">
-              <Detail message={selected} activeSpan={activeSpan} onPickSpan={setActiveSpan} onJump={jumpTo}
-                getMessage={(id) => store.getMessage(id)} onPickField={setPickedField}
-                onFindUsages={findUsagesOf}
-                lints={selected ? lintReport.byMessage.get(selected.id) : undefined} />
-            </TabsContent>
-            <TabsContent value="stats">
-              <StatsPanel messages={all} onJump={jumpTo} lints={lintReport} onFindUsages={(x) => setXidFilter(x)} />
-            </TabsContent>
-          </Tabs>
-        </box>
-      </SplitPane>
-    </window>
+    // The palette reaches core's widgets from here, and only from here.
+    // `colorScheme="dark"` is a pin rather than a preference: x11vis is a
+    // fixed dark design, and without it the tokens `PALETTE` does not name
+    // would be filled in from whatever the *desktop* is — light widgets in a
+    // dark shell on a light desktop. A `<ThemeProvider>` whose child is a
+    // `<window>` clones the theme onto it rather than wrapping it in a box,
+    // so this adds no node to the tree.
+    <ThemeProvider value={PALETTE} colorScheme="dark">
+      <window title="x11vis — X11 protocol visualizer" width={1240} height={780}
+        style={{ flexDirection: 'column', backgroundColor: C.background, color: C.text }}>
+        {/* No `globalMenu={false}`: where the desktop draws the menu bar —
+            the macOS bar under the cocoa backend, a dbusmenu panel on Linux —
+            it should, and `<MenuBar>` then renders nothing here. Everywhere
+            else `useGlobalMenu` stays false and the bar draws in-window, which
+            is what XQuartz, a bare startx and the headless screenshot all get.
+            The flag had pinned it in-window on every desktop. */}
+        <MenuBar menus={menus} style={{ backgroundColor: C.surface }} />
+        <Toolbar total={all.length} shown={rows.length} counts={counts} conns={store.connections.length}
+          paused={paused} mutedCats={mutedCats} onToggleCat={toggleCat} query={query} onQuery={setQuery}
+          profileId={profileId} onProfile={setProfile} />
+        {interceptor && (
+          <BreakOnDialog
+            open={breakDialog}
+            atoms={knownAtoms}
+            onClose={() => setBreakDialog(false)}
+            onCreate={(r: Omit<Rule, 'id' | 'hits'>) => interceptor.addRule(r)}
+          />
+        )}
+        {interceptor && (rules.length > 0 || held.length > 0) && (
+          <InterceptBar
+            rules={rules}
+            held={held}
+            queued={queued}
+            onDropHead={() => interceptor.dropHead()}
+            onToggle={(id, on) => interceptor.setEnabled(id, on)}
+            onRemove={(id) => interceptor.removeRule(id)}
+            onStep={() => interceptor.step()}
+            onContinue={() => interceptor.resumeAll()}
+            onInspect={(id) => jumpTo(id)}
+            onAdd={() => setBreakDialog(true)}
+          />
+        )}
+        {filtersActive && (
+          <FilterBar solo={solo} mutedCats={mutedCats} mutedNames={mutedNames} query={q}
+            xidFilter={xidFilter}
+            onClearSolo={() => setSolo(null)} onToggleCat={toggleCat} onToggleName={toggleName}
+            onClearQuery={() => setQuery('')} onClearXid={() => setXidFilter(null)} onClearAll={clearFilters} />
+        )}
+        <SplitPane direction="row" defaultSize={780} min={360} minSecond={340} style={{ flexGrow: 1 }}>
+          {showConsole ? (
+            <SplitPane direction="column" defaultSize={540} min={160} minSecond={72}>
+              {table}
+              <ConsolePane store={store} />
+            </SplitPane>
+          ) : table}
+          <box style={{ flexDirection: 'column', flexGrow: 1, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1 }}>
+            {/* lazyMount + unmountOnExit keep the old behaviour of building only
+                the visible panel — StatsPanel walks every message, so it should
+                not be kept live behind the Detail tab. */}
+            <Tabs defaultValue="detail" size="sm" ground={C.surface} lazyMount unmountOnExit>
+              <box style={{ paddingLeft: 6, paddingTop: 4, paddingRight: 6 }}>
+                <TabsList>
+                  <TabsTrigger value="detail">Detail</TabsTrigger>
+                  <TabsTrigger value="stats">Statistics</TabsTrigger>
+                </TabsList>
+              </box>
+              <TabsContent value="detail">
+                <Detail message={selected} activeSpan={activeSpan} onPickSpan={setActiveSpan} onJump={jumpTo}
+                  getMessage={(id) => store.getMessage(id)} onPickField={setPickedField}
+                  onFindUsages={findUsagesOf}
+                  lints={selected ? lintReport.byMessage.get(selected.id) : undefined} />
+              </TabsContent>
+              <TabsContent value="stats">
+                <StatsPanel messages={all} onJump={jumpTo} lints={lintReport} onFindUsages={(x) => setXidFilter(x)} />
+              </TabsContent>
+            </Tabs>
+          </box>
+        </SplitPane>
+      </window>
+    </ThemeProvider>
   );
 }
 
@@ -439,9 +478,9 @@ export function Toolbar(props: {
 }) {
   const options = useMemo(() => NETWORK_PROFILES.map((p) => ({ value: p.id, label: p.label })), []);
   return (
-    <box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 10, paddingRight: 10, paddingTop: 6, paddingBottom: 6, backgroundColor: C.panel, borderColor: C.border, borderWidth: 1 }}>
+    <box style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 10, paddingRight: 10, paddingTop: 6, paddingBottom: 6, backgroundColor: C.surface, borderColor: C.border, borderWidth: 1 }}>
       <text style={{ fontWeight: 'bold', color: C.text }}>x11vis</text>
-      <text style={{ color: props.paused ? C.warn : C.dim }}>{`${props.shown === props.total ? props.total : `${props.shown}/${props.total}`} msgs · ${props.conns} conns${props.paused ? ' · PAUSED' : ''}`}</text>
+      <text style={{ color: props.paused ? C.warning : C.textMuted }}>{`${props.shown === props.total ? props.total : `${props.shown}/${props.total}`} msgs · ${props.conns} conns${props.paused ? ' · PAUSED' : ''}`}</text>
       <Divider />
       {FILTER_CATS.map((cat) => (
         <Pill
@@ -454,10 +493,10 @@ export function Toolbar(props: {
         />
       ))}
       <box style={{ flexGrow: 1 }} />
-      <Icon name="search" size={13} color={C.dim} />
+      <Icon name="search" size={13} color={C.textMuted} />
       <TextField value={props.query} placeholder="Filter name/summary…" width={220} onChange={props.onQuery} />
       <Divider />
-      <text style={{ color: C.dim }}>Network</text>
+      <text style={{ color: C.textMuted }}>Network</text>
       <Select value={props.profileId} options={options} onChange={(ev: { value: string }) => props.onProfile(ev.value)} style={{ width: 180 }} />
     </box>
   );
@@ -473,12 +512,12 @@ export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
   lints: ReturnType<typeof computeLints>; onFindUsages: (xid: number) => void;
 }) {
   const s: CaptureStats = useMemo(() => computeStats(messages), [messages.length, messages]);
-  if (!s.total) return <box style={{ padding: 10 }}><text style={{ color: C.dim }}>No traffic captured yet.</text></box>;
+  if (!s.total) return <box style={{ padding: 10 }}><text style={{ color: C.textMuted }}>No traffic captured yet.</text></box>;
 
-  const sevColor = (v: string) => (v === 'high' ? C.err : v === 'medium' ? C.warn : C.dim);
+  const sevColor = (v: string) => (v === 'high' ? C.danger : v === 'medium' ? C.warning : C.textMuted);
   const Row = ({ k, v }: { k: string; v: string }) => (
     <box style={{ flexDirection: 'row', gap: 8 }}>
-      <text style={{ color: C.dim, width: 168, textWrap: 'nowrap' }}>{k}</text>
+      <text style={{ color: C.textMuted, width: 168, textWrap: 'nowrap' }}>{k}</text>
       <text style={{ color: C.text }}>{v}</text>
     </box>
   );
@@ -487,12 +526,12 @@ export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
     const max = Math.max(...list.map((e) => e.count));
     return (
       <box style={{ flexDirection: 'column', gap: 2, marginTop: 8 }}>
-        <text style={{ color: C.dim }}>{title}</text>
+        <text style={{ color: C.textMuted }}>{title}</text>
         {list.map((e) => (
           <box key={e.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <text style={{ color: C.text, width: 210, textWrap: 'nowrap', textOverflow: 'ellipsis' }}>{e.name}</text>
             <box style={{ width: Math.max(2, Math.round((e.count / max) * 90)), height: 9, backgroundColor: C.link, borderRadius: 2 }} />
-            <text style={{ color: C.dim }}>{`${e.count} · ${fmtBytes(e.bytes)}`}</text>
+            <text style={{ color: C.textMuted }}>{`${e.count} · ${fmtBytes(e.bytes)}`}</text>
           </box>
         ))}
       </box>
@@ -510,7 +549,7 @@ export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
               backgroundColor: C.panelAlt, borderColor: sevColor(h.severity), borderWidth: 1,
             }}>
               <text style={{ color: sevColor(h.severity), fontWeight: 'bold' }}>{h.title}</text>
-              <text style={{ color: C.dim }}>{h.detail}</text>
+              <text style={{ color: C.textMuted }}>{h.detail}</text>
             </box>
           ))}
         </box>
@@ -529,7 +568,7 @@ export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
       <Row k="RTT mean·p50·max" v={`${s.rttMeanMs.toFixed(1)} / ${s.rttP50Ms.toFixed(1)} / ${s.rttMaxMs.toFixed(1)} ms`} />
       {s.slowest && (
         <box style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <text style={{ color: C.dim, width: 168, textWrap: 'nowrap' }}>slowest</text>
+          <text style={{ color: C.textMuted, width: 168, textWrap: 'nowrap' }}>slowest</text>
           <Button
             label={`${s.slowest.name} — ${s.slowest.rttMs.toFixed(1)} ms`}
             icon="arrow-right"
@@ -548,7 +587,7 @@ export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
       <Row k="never freed (leaks)" v={String(lints.counts.leak)} />
       {lints.lints.slice(0, 6).map((l, i) => (
         <box key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <text style={{ color: l.severity === 'high' ? C.err : l.severity === 'medium' ? C.warn : C.dim }}>⚠</text>
+          <text style={{ color: l.severity === 'high' ? C.danger : l.severity === 'medium' ? C.warning : C.textMuted }}>⚠</text>
           <box onClick={() => onJump(l.messageId)} style={{ cursor: 'pointer', flexGrow: 1 }}>
             <text style={{ color: C.text, textWrap: 'nowrap', textOverflow: 'ellipsis' }}>{l.text}</text>
           </box>
@@ -579,7 +618,7 @@ export function FilterBar(props: {
   return (
     <box style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4, backgroundColor: C.panelAlt, borderColor: C.border, borderWidth: 1 }}>
       <box style={{ height: T.controlSm, justifyContent: 'center' }}>
-        <Icon name="filter" size={12} color={C.dim} />
+        <Icon name="filter" size={12} color={C.textMuted} />
       </box>
       {/*
         The pills wrap. Hiding a dozen event types is ordinary use — it is how
@@ -625,43 +664,43 @@ export function InterceptBar({ rules, held, queued, onToggle, onRemove, onStep, 
   return (
     <box style={{
       flexDirection: 'column', gap: 4, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4,
-      backgroundColor: first ? '#2a1f16' : C.panelAlt,
-      borderColor: first ? C.warn : C.border, borderWidth: 1,
+      backgroundColor: first ? C.held : C.panelAlt,
+      borderColor: first ? C.warning : C.border, borderWidth: 1,
     }}>
       {/* Transport controls, always present so their position never moves. */}
       <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon name={first ? 'pause' : 'play'} size={14} color={first ? C.warn : C.dim} />
+        <Icon name={first ? 'pause' : 'play'} size={14} color={first ? C.warning : C.textMuted} />
         {first ? (
           <>
-            <text style={{ color: C.warn, fontWeight: 'bold' }}>Paused</text>
+            <text style={{ color: C.warning, fontWeight: 'bold' }}>Paused</text>
             <box onClick={() => onInspect(first.msg.id)} style={{ cursor: 'pointer' }}>
               <text style={{ color: C.link }}>{`${first.msg.name} (#${first.msg.id})`}</text>
             </box>
-            <text style={{ color: C.dim }}>
+            <text style={{ color: C.textMuted }}>
               {queued > 0
                 ? `— client blocked · ${queued} message${queued === 1 ? '' : 's'} queued behind`
                 : '— the client is blocked here'}
             </text>
           </>
         ) : (
-          <text style={{ color: C.dim }}>Running — no message held</text>
+          <text style={{ color: C.textMuted }}>Running — no message held</text>
         )}
         <box style={{ flexGrow: 1 }} />
         <Button icon="step-forward" label="Step" small onClick={onStep} disabled={!first} />
         <Button icon="play" label="Continue" variant="solid" accent={C.link} small onClick={onContinue} disabled={!first} />
-        <Button icon="skip-forward" label="Skip" variant="outline" accent={C.err} small onClick={onDropHead} disabled={!first} />
+        <Button icon="skip-forward" label="Skip" variant="outline" accent={C.danger} small onClick={onDropHead} disabled={!first} />
         <Divider />
         <Button icon="circle-plus" label="Break on…" small onClick={onAdd} />
       </box>
 
       {rules.length > 0 && (
         <box style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon name="filter" size={12} color={C.dim} />
+          <Icon name="filter" size={12} color={C.textMuted} />
           {rules.map((r) => (
             <Pill
               key={r.id}
               label={`${describeRule(r)}${r.hits ? ` ·${r.hits}` : ''}`}
-              color={r.error ? C.err : r.action === 'drop' ? C.err : C.warn}
+              color={r.error ? C.danger : r.action === 'drop' ? C.danger : C.warning}
               icon={r.error ? 'triangle-alert' : r.enabled ? undefined : 'eye-off'}
               muted={!r.enabled}
               onClick={() => onToggle(r.id, !r.enabled)}
@@ -671,7 +710,7 @@ export function InterceptBar({ rules, held, queued, onToggle, onRemove, onStep, 
         </box>
       )}
       {rules.some((r) => r.error) && (
-        <text style={{ color: C.err }}>
+        <text style={{ color: C.danger }}>
           {`script error: ${rules.find((r) => r.error)!.error}`}
         </text>
       )}
@@ -683,8 +722,8 @@ export function ConsolePane({ store }: { store: CaptureStore }) {
   const entries = store.console.slice(-200);
   return (
     <box style={{ flexDirection: 'column', flexGrow: 1, backgroundColor: C.panelAlt, borderColor: C.border, borderWidth: 1, padding: 6, overflow: 'scroll' }}>
-      <text style={{ color: C.dim, marginBottom: 2 }}>Console — proxy events</text>
-      {entries.map((e, i) => <text key={i} style={{ color: e.level === 'error' ? C.err : e.level === 'warn' ? C.warn : C.dim }}>{`${new Date(e.ts).toLocaleTimeString()}  ${e.text}`}</text>)}
+      <text style={{ color: C.textMuted, marginBottom: 2 }}>Console — proxy events</text>
+      {entries.map((e, i) => <text key={i} style={{ color: e.level === 'error' ? C.danger : e.level === 'warn' ? C.warning : C.textMuted }}>{`${new Date(e.ts).toLocaleTimeString()}  ${e.text}`}</text>)}
     </box>
   );
 }
@@ -712,7 +751,7 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
     const it = state.item;
     const content = (
       <box style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {it.color ? <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: '#000', backgroundColor: it.color }} /> : null}
+        {it.color ? <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: C.background, backgroundColor: it.color }} /> : null}
         <text style={{ color: state.color }}>{it.label}</text>
       </box>
     );
@@ -725,11 +764,11 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
 
   return (
     <box style={{ flexDirection: 'column', flexGrow: 1, padding: 8, gap: 6 }}>
-      {!message ? <text style={{ color: C.dim }}>Select a packet…</text> : (
+      {!message ? <text style={{ color: C.textMuted }}>Select a packet…</text> : (
         <>
           <text style={{ color: catColor(message.category), fontWeight: 'bold' }}>{message.name}</text>
           <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <text style={{ color: C.dim }}>{`${message.category} · ${message.dir}` + (message.seq != null ? ` · seq #${message.seq}` : '') + (message.rttMs != null ? ` · ${message.rttMs.toFixed(2)}ms` : '')}</text>
+            <text style={{ color: C.textMuted }}>{`${message.category} · ${message.dir}` + (message.seq != null ? ` · seq #${message.seq}` : '') + (message.rttMs != null ? ` · ${message.rttMs.toFixed(2)}ms` : '')}</text>
             {/* Backward link: the request a reply or error answers. */}
             {message.requestId != null && (
               <Button
@@ -753,15 +792,15 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
                 icon="corner-down-right"
                 label={`${getMessage(message.replyId)?.category === 'error' ? 'error' : 'response'} #${message.replyId}`}
                 variant="outline"
-                accent={getMessage(message.replyId)?.category === 'error' ? C.err : C.link}
+                accent={getMessage(message.replyId)?.category === 'error' ? C.danger : C.link}
                 small
                 onClick={() => onJump(message.replyId!)}
               />
             )}
             {message.category === 'request' && message.replyId == null && message.expectsReply && (
               <box style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Icon name="loader" size={12} color={C.dim} />
-                <text style={{ color: C.dim }}>no response yet</text>
+                <Icon name="loader" size={12} color={C.textMuted} />
+                <text style={{ color: C.textMuted }}>no response yet</text>
               </box>
             )}
           </box>
@@ -771,10 +810,10 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
                 <box key={i} style={{
                   flexDirection: 'row', gap: 6, padding: 5, borderRadius: 3,
                   backgroundColor: C.panelAlt,
-                  borderColor: l.severity === 'high' ? C.err : l.severity === 'medium' ? C.warn : C.dim,
+                  borderColor: l.severity === 'high' ? C.danger : l.severity === 'medium' ? C.warning : C.textMuted,
                   borderWidth: 1,
                 }}>
-                  <text style={{ color: l.severity === 'high' ? C.err : l.severity === 'medium' ? C.warn : C.dim }}>⚠</text>
+                  <text style={{ color: l.severity === 'high' ? C.danger : l.severity === 'medium' ? C.warning : C.textMuted }}>⚠</text>
                   <text style={{ color: C.text, flexGrow: 1 }}>{l.text}</text>
                 </box>
               ))}
@@ -783,23 +822,23 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
           <Code source={prettyCall(message)} lang="js" wrap selectable style={{ marginTop: 2 }} />
           {message.image && (
             <box style={{ flexDirection: 'column', gap: 4, marginTop: 4 }}>
-              <text style={{ color: C.dim }}>Image</text>
+              <text style={{ color: C.textMuted }}>Image</text>
               <ImagePreview message={message} />
             </box>
           )}
           {message.cursor && (
             <box style={{ flexDirection: 'column', gap: 4, marginTop: 4 }}>
-              <text style={{ color: C.dim }}>Cursor</text>
+              <text style={{ color: C.textMuted }}>Cursor</text>
               <CursorPreview message={message} getMessage={getMessage} />
             </box>
           )}
           {message.glyphs && message.glyphs.length > 0 && (
             <box style={{ flexDirection: 'column', gap: 4, marginTop: 4 }}>
-              <text style={{ color: C.dim }}>Glyphs</text>
+              <text style={{ color: C.textMuted }}>Glyphs</text>
               <GlyphsPreview message={message} />
             </box>
           )}
-          <text style={{ color: C.dim, marginTop: 4 }}>Fields — click a row to highlight its bytes · hover a → to preview, double-click to jump</text>
+          <text style={{ color: C.textMuted, marginTop: 4 }}>Fields — click a row to highlight its bytes · hover a → to preview, double-click to jump</text>
           <box style={{ flexGrow: 1, minHeight: 0 }}>
             <Tree items={items} renderLabel={renderLabel}
               onSelect={(_id: string, item: FieldItem) => {
@@ -811,7 +850,7 @@ export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, on
                 else if (item.raw && /^0x[0-9a-f]+$/i.test(item.raw) && item.type) onFindUsages(item.raw);
               }} />
           </box>
-          <text style={{ color: C.dim }}>Hex</text>
+          <text style={{ color: C.textMuted }}>Hex</text>
           {/*
             Sized by its content, not by an arbitrary cap. The row count is
             already bounded (HEX_MAX_ROWS), so the block has a known natural
@@ -867,7 +906,7 @@ function Bitmap({ img, boxW, boxH, cacheKey }: {
   // A backdrop so alpha (glyph coverage is mostly alpha) reads as transparency
   // rather than as black ink.
   return (
-    <box style={{ width: w, height: h, backgroundColor: '#20262f', borderRadius: 2 }}>
+    <box style={{ width: w, height: h, backgroundColor: C.imageMat, borderRadius: 2 }}>
       <image
         src={source}
         cacheKey={cacheKey ? `${cacheKey}:${w}x${h}` : undefined}
@@ -892,12 +931,12 @@ function ImagePreview({ message }: { message: CapturedMessage }) {
   let img: RGBAImage | undefined;
   try { img = decodeImage(message.bytes, spec); } catch { img = undefined; }
   if (!img) {
-    return <text style={{ color: C.dim }}>{`${spec.width}×${spec.height} depth ${spec.depth} — no preview for this format`}</text>;
+    return <text style={{ color: C.textMuted }}>{`${spec.width}×${spec.height} depth ${spec.depth} — no preview for this format`}</text>;
   }
   return (
     <box style={{ flexDirection: 'column', gap: 4 }}>
       <Bitmap img={img} boxW={380} boxH={220} cacheKey={`img:${message.id}`} />
-      <text style={{ color: C.dim }}>{`${spec.width}×${spec.height} · depth ${spec.depth}`}</text>
+      <text style={{ color: C.textMuted }}>{`${spec.width}×${spec.height} · depth ${spec.depth}`}</text>
     </box>
   );
 }
@@ -923,20 +962,20 @@ function CursorPreview({ message, getMessage }: {
   return (
     <box style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       {img ? <Bitmap img={img} boxW={72} boxH={72} cacheKey={`cursor:${message.id}`} /> : (
-        <text style={{ color: C.dim }}>
+        <text style={{ color: C.textMuted }}>
           {'source bitmap not seen in this capture'}
         </text>
       )}
       <box style={{ flexDirection: 'column', gap: 3 }}>
         <box style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: '#000', backgroundColor: swatch(spec.fore) }} />
-          <text style={{ color: C.dim }}>foreground</text>
+          <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: C.background, backgroundColor: swatch(spec.fore) }} />
+          <text style={{ color: C.textMuted }}>foreground</text>
         </box>
         <box style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: '#000', backgroundColor: swatch(spec.back) }} />
-          <text style={{ color: C.dim }}>background</text>
+          <box style={{ width: 11, height: 11, borderRadius: 2, borderWidth: 1, borderColor: C.background, backgroundColor: swatch(spec.back) }} />
+          <text style={{ color: C.textMuted }}>background</text>
         </box>
-        <text style={{ color: C.dim }}>{`hotspot (${spec.hotX}, ${spec.hotY})`}</text>
+        <text style={{ color: C.textMuted }}>{`hotspot (${spec.hotX}, ${spec.hotY})`}</text>
       </box>
     </box>
   );
@@ -947,13 +986,13 @@ function GlyphsPreview({ message }: { message: CapturedMessage }) {
   const specs = message.glyphs!.filter((g) => g.width > 0 && g.height > 0).slice(0, 24);
   const imgs = specs.map((g) => { try { return decodeGlyph(message.bytes, g); } catch { return undefined; } });
   const shown = imgs.filter(Boolean) as RGBAImage[];
-  if (!shown.length) return <text style={{ color: C.dim }}>No renderable glyphs</text>;
+  if (!shown.length) return <text style={{ color: C.textMuted }}>No renderable glyphs</text>;
   return (
     <box style={{ flexDirection: 'column', gap: 4 }}>
       <box style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'flex-end' }}>
         {shown.map((g, i) => <Bitmap key={i} img={g} boxW={44} boxH={44} cacheKey={`glyph:${message.id}:${i}`} />)}
       </box>
-      <text style={{ color: C.dim }}>{`${message.glyphs!.length} glyphs${message.glyphs!.length > shown.length ? ` (showing ${shown.length})` : ''}`}</text>
+      <text style={{ color: C.textMuted }}>{`${message.glyphs!.length} glyphs${message.glyphs!.length > shown.length ? ` (showing ${shown.length})` : ''}`}</text>
     </box>
   );
 }
@@ -977,11 +1016,11 @@ function CreatorPreview({ creator }: { creator: CapturedMessage }) {
     <box style={{ flexDirection: 'column', gap: 5, padding: 6 }}>
       <text style={{ color: catColor(creator.category), fontWeight: 'bold' }}>{`${creator.name}  #${creator.id}`}</text>
       <box style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {colorF ? <box style={{ width: 28, height: 28, borderRadius: 4, borderWidth: 1, borderColor: '#000', backgroundColor: colorF.color }} /> : null}
+        {colorF ? <box style={{ width: 28, height: 28, borderRadius: 4, borderWidth: 1, borderColor: C.background, backgroundColor: colorF.color }} /> : null}
         {thumb ? <Bitmap img={thumb} boxW={64} boxH={40} cacheKey={`thumb:${creator.id}`} /> : null}
         {colorF ? <text style={{ color: C.text }}>{colorF.value}</text> : null}
       </box>
-      <text style={{ color: C.dim }}>{creator.summary || '(no details)'}</text>
+      <text style={{ color: C.textMuted }}>{creator.summary || '(no details)'}</text>
     </box>
   );
 }
@@ -998,23 +1037,30 @@ export function HexView({ bytes, activeSpan }: { bytes: Buffer; activeSpan: Span
     for (let i = 0; i < 16; i++) {
       const off = bpos + i;
       if (off >= limit) {
-        cells.push(<text key={i} style={{ color: C.dim }}>{'   '}</text>);
+        // A placeholder in invisible ink, not spaces: it has to *measure* as
+        // one byte or the ASCII gutter drifts left on a short final row.
+        cells.push(<text key={i} style={{ color: 'transparent', paddingRight: HEX_GAP, textWrap: 'nowrap', flexShrink: 0 }}>00</text>);
         ascii += ' ';
         continue;
       }
       const b = bytes[off]!; const hot = inSpan(off);
       ascii += b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.';
-      cells.push(<text key={i} style={{ color: hot ? C.bg : C.text, backgroundColor: hot ? C.hot : undefined }}>{b.toString(16).padStart(2, '0') + ' '}</text>);
+      cells.push(<text key={i} style={{ color: hot ? C.background : C.text, backgroundColor: hot ? C.hot : undefined, paddingRight: HEX_GAP, textWrap: 'nowrap', flexShrink: 0 }}>{b.toString(16).padStart(2, '0')}</text>);
     }
     rows.push(
       <box key={bpos} style={{ flexDirection: 'row' }}>
-        <text style={{ color: C.dim, width: 42 }}>{bpos.toString(16).padStart(4, '0') + '  '}</text>
-        {cells}<text style={{ color: C.dim, marginLeft: 8 }}>{ascii}</text>
+        <text style={{ color: C.textMuted, width: 42 }}>{bpos.toString(16).padStart(4, '0')}</text>
+        {cells}<text style={{ color: C.textMuted, marginLeft: 8 }}>{ascii}</text>
       </box>,
     );
   }
-  if (bytes.length > limit) rows.push(<text key="more" style={{ color: C.dim }}>{`… +${bytes.length - limit} more bytes`}</text>);
-  return <box style={{ flexDirection: 'column' }}>{rows}</box>;
+  if (bytes.length > limit) rows.push(<text key="more" style={{ color: C.textMuted }}>{`… +${bytes.length - limit} more bytes`}</text>);
+  // `monoFamily`, not a literal family name. Each byte is its own `<text>` in
+  // a flex row, so the columns line up only where every glyph pair advances
+  // the same width — in a proportional face `01` and `18` are different widths
+  // and the grid shears. It inherits, so one declaration covers the offsets,
+  // the bytes and the ASCII gutter.
+  return <box style={{ flexDirection: 'column', fontFamily: '$monoFamily', fontSize: HEX_FONT_SIZE }}>{rows}</box>;
 }
 
 function prettyCall(m: CapturedMessage): string {

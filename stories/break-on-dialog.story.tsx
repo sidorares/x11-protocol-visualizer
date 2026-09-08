@@ -38,7 +38,7 @@ export const breakOn = story(
 
     return (
       <Ground width={400}>
-        <text style={{ color: T.dim }}>
+        <text style={{ color: T.textMuted }}>
           {shown ? 'The dialog is open — it is its own window.' : 'Closed:'}
         </text>
         <box style={{ flexDirection: 'row', gap: 8 }}>
@@ -46,9 +46,9 @@ export const breakOn = story(
         </box>
         {created.length > 0 && (
           <box style={{ flexDirection: 'column', gap: 4 }}>
-            <text style={{ color: T.dim }}>Rules this story has created:</text>
+            <text style={{ color: T.textMuted }}>Rules this story has created:</text>
             {created.map((r, i) => (
-              <text key={i} style={{ color: T.warn }}>
+              <text key={i} style={{ color: T.warning }}>
                 {describeRule({ ...r, id: i + 1, hits: 0 })}
               </text>
             ))}
