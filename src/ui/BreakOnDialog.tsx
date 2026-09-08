@@ -15,7 +15,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Dialog, Select, Tabs } from 'react-x11';
+import { Dialog, Select } from 'react-x11';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@react-x11/components/tabs';
 import { Tree } from '@react-x11/components/tree';
 import { CodeEditor } from '@react-x11/components/code-editor';
 import { javascript } from '@react-x11/components/code-language';
@@ -81,13 +82,10 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
     setPredicates((p) => p.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const delPredicate = (i: number) => setPredicates((p) => p.filter((_, j) => j !== i));
 
-  // The panels are built here and handed to `Tabs` as item content. Rendering
-  // them *below* a Tabs strip instead left the component's own (empty) panel
-  // holding the space, which is what pushed the editor down the dialog.
   const conditionsPanel = entry ? (
     <box style={{
       flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'stretch',
-      gap: 5, flexGrow: 1, minHeight: 0, paddingTop: 6,
+      gap: 5, flexGrow: 1, minHeight: 0,
     }}>
       {predicates.length === 0 && (
         <text style={{ color: C.dim }}>
@@ -114,7 +112,7 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
   ) : null;
 
   const scriptPanel = (
-    <box style={{ flexDirection: 'column', gap: 4, flexGrow: 1, minHeight: 0, paddingTop: 6 }}>
+    <box style={{ flexDirection: 'column', gap: 4, flexGrow: 1, minHeight: 0 }}>
       <box style={{
         flexGrow: 1, minHeight: 0, borderColor: C.border, borderWidth: 1,
         borderRadius: T.radius, backgroundColor: C.panelAlt,
@@ -203,14 +201,19 @@ export function BreakOnDialog({ open, atoms, onClose, onCreate }: BreakOnDialogP
               </box>
 
               <Tabs
-                items={[
-                  { id: 'conditions', label: 'Conditions', content: conditionsPanel },
-                  { id: 'script', label: 'Script', content: scriptPanel },
-                ]}
                 value={tab}
-                onChange={setTab}
+                onValueChange={(change) => setTab(change.value)}
+                size="sm"
+                ground={C.bg}
                 style={{ flexGrow: 1, minHeight: 0 }}
-              />
+              >
+                <TabsList>
+                  <TabsTrigger value="conditions">Conditions</TabsTrigger>
+                  <TabsTrigger value="script">Script</TabsTrigger>
+                </TabsList>
+                <TabsContent value="conditions">{conditionsPanel}</TabsContent>
+                <TabsContent value="script">{scriptPanel}</TabsContent>
+              </Tabs>
             </>
           )}
         </box>

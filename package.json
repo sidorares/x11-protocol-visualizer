@@ -34,12 +34,12 @@
   },
   "optionalDependencies": {
     "@lezer/highlight": "^1.2.0",
-    "@react-x11/components": "^0.3.0",
-    "react-x11": "^2.0.0"
+    "@react-x11/components": "^0.4.0",
+    "react-x11": "^2.1.4"
   },
   "comments": {
     "node-x11": "The core decoder deliberately embeds its own span-aware reader with tables derived from node-x11's opcode values (see docs/decoder-and-state.md §2.1), so node-x11 is not a direct runtime dep. The npm package node-x11@1.0.4 also fails its native node-gyp build on Node 26; the current pure-JS node-x11 arrives transitively via react-x11 for the UI.",
-    "@react-x11/components": "Both UI packages are now published to npm (react-x11@2.0.0, @react-x11/components@0.3.0) with aligned versions: components declares peer react-x11@^2.0.0, which the semver range resolves. 0.3.0 adds optional node-pty/@lydell/node-pty peers for its new terminal component; we don't use it, so they stay uninstalled. @lezer/highlight is an optional peer the <Code> component uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
+    "@react-x11/components": "Both UI packages are now published to npm (react-x11@2.0.0, @react-x11/components@0.3.0) with aligned versions: components declares peer react-x11@^2.0.0, which the semver range resolves. 0.3.0 adds optional node-pty/@lydell/node-pty peers for its new terminal component; we don't use it, so they stay uninstalled. 0.4.0 adds the composable <Tabs> family (react-x11-components#50), which the UI now uses instead of core's <Tabs>. @lezer/highlight is an optional peer the <Code> component uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
     "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can't load."
   },
   "devDependencies": {

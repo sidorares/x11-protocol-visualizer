@@ -23,7 +23,11 @@ import { Icon } from './icons.js';
 /** Colour and spacing tokens. */
 export const T = {
   bg: '#0b0e14',
+  // bg: '$surface',
+  
   panel: '#11161f',
+  // panel: '$surface',
+
   panelAlt: '#0e131b',
   border: '#232a36',
   borderStrong: '#313d4f',

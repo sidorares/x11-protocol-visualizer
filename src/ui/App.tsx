@@ -10,7 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { MenuBar, SplitPane, Select, Tabs, Tooltip, type MenuItem } from 'react-x11';
+import { MenuBar, SplitPane, Select, Tooltip, type MenuItem } from 'react-x11';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@react-x11/components/tabs';
 import { Table } from '@react-x11/components/table';
 import { Tree } from '@react-x11/components/tree';
 import { Code } from '@react-x11/components/code';
@@ -74,7 +75,6 @@ export interface AppProps {
 }
 
 export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
-  const [rightTab, setRightTab] = useState<'detail' | 'stats'>('detail');
   useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeSpan, setActiveSpan] = useState<Span | null>(null);
@@ -404,21 +404,26 @@ export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
           </SplitPane>
         ) : table}
         <box style={{ flexDirection: 'column', flexGrow: 1, backgroundColor: C.panel, borderColor: C.border, borderWidth: 1 }}>
-          <box style={{ paddingLeft: 6, paddingTop: 4, paddingRight: 6 }}>
-            <Tabs
-              items={[{ id: 'detail', label: 'Detail' }, { id: 'stats', label: 'Statistics' }]}
-              value={rightTab}
-              onChange={(id: string) => setRightTab(id as 'detail' | 'stats')}
-            />
-          </box>
-          {rightTab === 'detail' ? (
-            <Detail message={selected} activeSpan={activeSpan} onPickSpan={setActiveSpan} onJump={jumpTo}
-              getMessage={(id) => store.getMessage(id)} onPickField={setPickedField}
-              onFindUsages={findUsagesOf}
-              lints={selected ? lintReport.byMessage.get(selected.id) : undefined} />
-          ) : (
-            <StatsPanel messages={all} onJump={jumpTo} lints={lintReport} onFindUsages={(x) => setXidFilter(x)} />
-          )}
+          {/* lazyMount + unmountOnExit keep the old behaviour of building only
+              the visible panel — StatsPanel walks every message, so it should
+              not be kept live behind the Detail tab. */}
+          <Tabs defaultValue="detail" size="sm" ground={C.panel} lazyMount unmountOnExit>
+            <box style={{ paddingLeft: 6, paddingTop: 4, paddingRight: 6 }}>
+              <TabsList>
+                <TabsTrigger value="detail">Detail</TabsTrigger>
+                <TabsTrigger value="stats">Statistics</TabsTrigger>
+              </TabsList>
+            </box>
+            <TabsContent value="detail">
+              <Detail message={selected} activeSpan={activeSpan} onPickSpan={setActiveSpan} onJump={jumpTo}
+                getMessage={(id) => store.getMessage(id)} onPickField={setPickedField}
+                onFindUsages={findUsagesOf}
+                lints={selected ? lintReport.byMessage.get(selected.id) : undefined} />
+            </TabsContent>
+            <TabsContent value="stats">
+              <StatsPanel messages={all} onJump={jumpTo} lints={lintReport} onFindUsages={(x) => setXidFilter(x)} />
+            </TabsContent>
+          </Tabs>
         </box>
       </SplitPane>
     </window>
