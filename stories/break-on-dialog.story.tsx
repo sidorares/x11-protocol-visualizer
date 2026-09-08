@@ -24,7 +24,7 @@ import type { Rule } from '../src/core/rules.js';
 import { describeRule } from '../src/core/rules.js';
 import { Ground } from './ground.js';
 
-export default { title: 'Break on… dialog', theme: 'dark', size: { width: 420, height: 220 } };
+export default { title: 'Break on… dialog', theme: 'both', size: { width: 420, height: 220 } };
 
 /** The atoms a short session has interned, for the atom picker. */
 const ATOMS = ['WM_NAME', 'WM_PROTOCOLS', 'RESOURCE_MANAGER', 'STRING', 'UTF8_STRING', '_NET_WM_NAME'];

@@ -100,8 +100,15 @@ function pick(candidates: string[], what: string): string {
 
 // --- the shot --------------------------------------------------------------
 
-async function main() {
-  mkdirSync(OUT_DIR, { recursive: true });
+/**
+ * One scene, in one scheme.
+ *
+ * `colorScheme` here is the **desktop's**, not a pin on the app: `<App>` reads
+ * it through the `<ThemeProvider>` it wraps the window in, exactly as it does
+ * on a real desktop, so the two shots are the same window photographed on two
+ * machines rather than one window forced into two palettes.
+ */
+async function shoot(scheme: 'light' | 'dark', file: string) {
   const store = buildDemoStore(FROZEN_MS);
   const network = new NetworkEmulator();
 
@@ -121,11 +128,7 @@ async function main() {
       monospace: pick(MONO, 'monospace'),
       'sans-serif': pick(SANS, 'sans-serif'),
     },
-    // Belt and braces: `<App>` now pins its own scheme through the
-    // `<ThemeProvider>` it wraps the window in, so this only decides what the
-    // *test harness* seeds the appearance store with. Kept so a shot never
-    // depends on the developer's desktop even for the frame around the window.
-    colorScheme: 'dark',
+    colorScheme: scheme,
   } as Parameters<typeof renderX11>[1]);
 
   // Let every transition finish before the next step reads or clicks anything.
@@ -152,11 +155,25 @@ async function main() {
   await userEvent.click(getByText('property = RESOURCE_MANAGER'));
   await settle();
 
-  await toPNG(ctx, join(OUT_DIR, 'x11vis.png'), { width: WIDTH, height: HEIGHT });
-  console.log(`wrote ${join(OUT_DIR, 'x11vis.png')} (${WIDTH}x${HEIGHT})`);
+  await toPNG(ctx, join(OUT_DIR, file), { width: WIDTH, height: HEIGHT });
+  console.log(`wrote ${join(OUT_DIR, file)} (${WIDTH}x${HEIGHT}, ${scheme})`);
 
   unmount();
   await cleanup();
+}
+
+/**
+ * Both schemes, because the app has two now and a single shot would only
+ * prove one of them still renders. The dark one keeps the committed filename
+ * it has always had, so the README's link and any diff of it survive.
+ *
+ * Sequential rather than parallel: `renderX11` starts an X server and
+ * `cleanup()` tears it down, and the fixture's frozen clock is process-global.
+ */
+async function main() {
+  mkdirSync(OUT_DIR, { recursive: true });
+  await shoot('dark', 'x11vis.png');
+  await shoot('light', 'x11vis-light.png');
 }
 
 await main();

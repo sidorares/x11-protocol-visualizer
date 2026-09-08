@@ -18,7 +18,7 @@ import type { Category } from '../src/core/protocol/types.js';
 import { buildDemoStore } from '../fixtures/demo-session.js';
 import { Ground } from './ground.js';
 
-export default { title: 'Toolbar', theme: 'dark', size: { width: 1180, height: 60 } };
+export default { title: 'Toolbar', theme: 'both', size: { width: 1180, height: 60 } };
 
 /** The demo session's real counts, so the numbers are not invented. */
 const store = buildDemoStore();

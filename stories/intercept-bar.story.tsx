@@ -17,7 +17,7 @@ import type { HeldMessage, InterceptRule } from '../src/core/intercept.js';
 import { buildDemoStore, demoMessage } from '../fixtures/demo-session.js';
 import { Ground } from './ground.js';
 
-export default { title: 'Intercept bar', theme: 'dark', size: { width: 1180, height: 110 } };
+export default { title: 'Intercept bar', theme: 'both', size: { width: 1180, height: 110 } };
 
 const store = buildDemoStore();
 

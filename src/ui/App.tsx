@@ -30,7 +30,7 @@ import { Icon } from './icons.js';
 // `const C = T` at module scope) so that under hot reload — where named
 // imports become live bindings initialized after module evaluation — `C`
 // is read lazily at render time instead of capturing undefined.
-import { Button, Divider, IconButton, PALETTE, Pill, T, T as C, TextField } from './controls.js';
+import { Button, DARK, Divider, IconButton, PALETTE, Pill, T, T as C, TextField } from './controls.js';
 // The status family, under the names the packet list means. A reply is the
 // green one and an error is the red one, so there is no second green and no
 // second red anywhere in the app.
@@ -388,14 +388,20 @@ export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
   );
 
   return (
-    // The palette reaches core's widgets from here, and only from here.
-    // `colorScheme="dark"` is a pin rather than a preference: x11vis is a
-    // fixed dark design, and without it the tokens `PALETTE` does not name
-    // would be filled in from whatever the *desktop* is — light widgets in a
-    // dark shell on a light desktop. A `<ThemeProvider>` whose child is a
-    // `<window>` clones the theme onto it rather than wrapping it in a box,
-    // so this adds no node to the tree.
-    <ThemeProvider value={PALETTE} colorScheme="dark">
+    // The palette reaches both widget layers from here, and only from here:
+    // core's widgets read it through React context, and every `'$token'` in a
+    // style resolves against the copy the provider plants on the window node.
+    //
+    // **No `colorScheme`**, which is how the app follows the desktop. Naming
+    // one is the complete opt-out — nothing under a pinned provider asks the
+    // desktop anything — and that pin is what used to make x11vis dark on a
+    // light desktop no matter what the desktop said. `dark={DARK}` is the
+    // other half: the scheme in force decides which of the two palettes is
+    // layered on, over the matching one of core's own.
+    //
+    // A `<ThemeProvider>` whose child is a `<window>` clones the theme onto it
+    // rather than wrapping it in a box, so this adds no node to the tree.
+    <ThemeProvider value={PALETTE} dark={DARK}>
       <window title="x11vis — X11 protocol visualizer" width={1240} height={780}
         style={{ flexDirection: 'column', backgroundColor: C.background, color: C.text }}>
         {/* No `globalMenu={false}`: where the desktop draws the menu bar —
@@ -630,7 +636,7 @@ export function FilterBar(props: {
         remove.
       */}
       <box style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, columnGap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
-        {props.solo && chip('solo', `solo: ${props.solo}`, C.hot, props.onClearSolo)}
+        {props.solo && chip('solo', `solo: ${props.solo}`, C.warning, props.onClearSolo)}
         {[...props.mutedCats].map((c) => chip(`c-${c}`, `hide ${c}`, catColor(c), () => props.onToggleCat(c)))}
         {[...props.mutedNames].map((n) => chip(`n-${n}`, `hide ${n}`, C.text, () => props.onToggleName(n)))}
         {props.query && chip('q', `“${props.query}”`, C.text, props.onClearQuery)}
@@ -1045,7 +1051,7 @@ export function HexView({ bytes, activeSpan }: { bytes: Buffer; activeSpan: Span
       }
       const b = bytes[off]!; const hot = inSpan(off);
       ascii += b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.';
-      cells.push(<text key={i} style={{ color: hot ? C.background : C.text, backgroundColor: hot ? C.hot : undefined, paddingRight: HEX_GAP, textWrap: 'nowrap', flexShrink: 0 }}>{b.toString(16).padStart(2, '0')}</text>);
+      cells.push(<text key={i} style={{ color: hot ? C.hotInk : C.text, backgroundColor: hot ? C.hot : undefined, paddingRight: HEX_GAP, textWrap: 'nowrap', flexShrink: 0 }}>{b.toString(16).padStart(2, '0')}</text>);
     }
     rows.push(
       <box key={bpos} style={{ flexDirection: 'row' }}>

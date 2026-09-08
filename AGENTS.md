@@ -180,11 +180,19 @@ makes it the cheap check after touching a story.
   adds a knobs panel — reach for it when the state space is worth sweeping, not
   by default.
 - **Wrap a story in `<Ground>`.** It carries both halves of the app's look: the
-  window's own ground colour, and the `<ThemeProvider value={PALETTE}>` that
-  `App.tsx` puts around the window. Without the provider a `<Button>` or a
+  window's own ground colour, and the `<ThemeProvider value={PALETTE} dark={DARK}>`
+  that `App.tsx` puts around the window. Without the provider a `<Button>` or a
   `<Select>` in a story resolves against the *workshop's* palette and is
-  previewed in colours it never wears in the app. Declaring `theme: 'dark'` on
-  the story file as well keeps the workshop's own chrome in the same scheme.
+  previewed in colours it never wears in the app — and the panel's own
+  `'$token'` styles resolve against the workshop too, except the five names
+  only x11vis has (`panelAlt`, `hot`, `hotInk`, `held`, `imageMat`), which are
+  not in it and drop out of the style entirely. `detail.story.tsx` and
+  `panels.story.tsx` went without one for a long time and were the two stories
+  that photographed wrong; there is no story that should skip it.
+- **`theme: 'both'` on the story file**, which is what every one of them
+  declares: the app follows the desktop now, so a story has two right answers
+  and the workshop shows them side by side. Pin a file to `'light'` or
+  `'dark'` only to isolate one while working on it.
 - **A whole-window story is out of scope by design** — the workshop previews
   components, and a story whose root is a `<window>` throws. `<BreakOnDialog>`
   is the edge case that works: core's `<Dialog>` is a managed popup, so it
@@ -217,9 +225,18 @@ per run makes the diff useless as a signal that something visibly changed:
   after every interaction; `settle()` in the script does both.
 - **The fonts** — passed explicitly, or family resolution shells out to
   `fc-match` and answers differently on every machine.
-- **react-x11's palette** — `colorScheme: 'dark'`. `<App>` pins its own scheme
-  now (see *Design tokens* below), so this only seeds the harness's appearance
-  store; it is kept so a shot never depends on the developer's desktop.
+- **The desktop's colour scheme** — `colorScheme`, passed per shot rather than
+  read from the machine. `<App>` follows the desktop (see *Design tokens*
+  below), so this is the whole input that decides which palette a shot is
+  taken in, and it is why there are two: `x11vis.png` is the dark desktop and
+  `x11vis-light.png` the light one. A single shot would only ever prove one of
+  the two still renders.
+
+`REACT_X11_STRICT_TOKENS=1 npm run screenshot` is the cheapest check that the
+palette is whole: an unresolved `'$token'` normally drops the property and
+carries on, and under that flag it throws instead. The script drives the menu
+bar, both tabs, a row selection and a field pick, so it covers most of the
+window in both schemes.
 
 The traffic is **synthesized, not recorded**: `fixtures/demo-session.ts` is
 hand-built X11 bytes fed through the real `ConnectionCapture`, so the decoding
@@ -233,38 +250,70 @@ throws, by design, naming what the session does contain).
 
 ## Design tokens
 
-**Every colour in the UI is named once, in `PALETTE` (`src/ui/controls.tsx`),
-and nowhere else.** A hex literal anywhere under `src/ui` or `stories/` is a
-bug — `grep -n '#[0-9a-fA-F]\{3,8\}' src/ui/*.tsx stories/*.tsx` should only
-ever hit that one object and a couple of prose comments.
+**Every colour in the UI is named once, in `src/ui/controls.tsx`, and nowhere
+else.** A hex literal anywhere under `src/ui` or `stories/` is a bug —
+`grep -n '#[0-9a-fA-F]\{3,8\}' src/ui/*.tsx stories/*.tsx` should only ever hit
+that one file and a couple of prose comments.
 
-`PALETTE` is not a private lookup table: it is a **react-x11 theme**, handed to
-core by the `<ThemeProvider value={PALETTE} colorScheme="dark">` that wraps the
-window. That matters because x11vis is two widget layers in one window — its
+There are three exports and they are three different things:
+
+- **`PALETTE`** — the light scheme, a **react-x11 theme** rather than a private
+  lookup table.
+- **`DARK`** — what a dark desktop changes about it. This is the palette x11vis
+  shipped when it was dark-only, so a dark desktop still sees what it saw.
+- **`T`** — what the call sites write, and *not* a bag of colours. A string
+  token in `PALETTE` becomes a `'$name'` **reference** (`T.textMuted` is
+  `'$textMuted'`); a number is a metric with no scheme and passes through as
+  itself (`T.control` is still `26`). Derived from `PALETTE` by type, so a
+  colour cannot be named twice and drift.
+
+`App.tsx` mounts `<ThemeProvider value={PALETTE} dark={DARK}>` around the
+window and **names no `colorScheme`**, which is how the app follows the
+desktop. That matters because x11vis is two widget layers in one window — its
 own `<box>`es, and core's `MenuBar`/`Select`/`Button`/`Dialog` plus every
-`@react-x11/components` widget. Core's layer resolves against the **desktop's**
-palette unless an app says otherwise, so before the provider existed the app
-came up with light widgets inside a dark shell on any light desktop. The
-screenshot script and the stories each pinned `colorScheme: 'dark'` to hide it;
-the shipping app pinned nothing.
+`@react-x11/components` widget. Core's layer resolves against the desktop's
+palette unless an app says otherwise, so with no provider the app came up with
+light widgets inside a dark shell on a light desktop. Pinning
+`colorScheme="dark"` fixed *that* by making the app never follow the desktop at
+all — naming a scheme is the complete opt-out, and nothing under a pinned
+provider asks the desktop anything.
 
 So:
 
+- **Never pin a scheme.** Not in `App.tsx`, not in `<Ground>`, not in a story.
+  The one place a scheme is named on purpose is `scripts/screenshot.tsx`, which
+  passes it *per shot* so the committed PNGs do not depend on the developer's
+  desktop.
+- **Write `T.token`, and let it resolve at paint time.** A hex read out of the
+  module at import time is frozen, and ~200 frozen colours are what made the
+  app dark on a light desktop no matter what the provider said. The `$token`
+  route resolves by walking the *node* tree for the nearest `theme` prop, which
+  is why it reaches into managed popups (`<Dialog>`, `<Tooltip>`) too — both
+  plant the palette on their own window.
+- **A colour that crosses a prop still works**, because every one of them lands
+  in a style eventually: `<Icon color>`, `<Button accent>`, `<Pill color>`, a
+  `RowData.color`, whatever `catColor()` returns. `<Tabs ground>` is the one
+  that does colour arithmetic, and it resolves `$token` itself first.
 - **Use core's token name where core has one** — `textMuted`, not `dim`;
   `danger`, not `err`; `background`/`surface`, not `bg`/`panel`. A colour under
   a private name is a colour core's widgets cannot see, which is how the two
   layers drift apart. The handful with no core equivalent (`panelAlt`, `hot`,
-  `held`, `imageMat`, `control`, `padXsm`) are grouped at the bottom of the
-  object and commented as such.
-- **Don't name what core can derive.** Unnamed tokens fall back to core's
-  `DarkTheme`, and the derived ones — the pressed step of each fill, the ink
-  that goes on it — are better computed than typed (`resolveTheme` in
-  react-x11's `palette.js`).
-- **`'$token'` works in any style value**, resolved against the nearest theme:
-  `fontFamily: '$monoFamily'`, `linear-gradient($accent, $accentActive)`. Reach
-  for it in a style that is hoisted out of render, or where the value should
-  follow the theme rather than this module's copy of it; `T.textMuted` reads
-  the same object and is fine everywhere else.
+  `hotInk`, `held`, `imageMat`, `control`, `padXsm`) are grouped at the bottom
+  of `PALETTE` and commented as such. Those five colours are also the ones a
+  story without `<Ground>` cannot resolve at all.
+- **Don't name what core can derive.** Unnamed tokens fall back to core's own
+  `DefaultTheme`/`DarkTheme` pair, and the derived ones — the pressed step of
+  each fill, the ink that goes on it — are better computed than typed
+  (`resolveTheme` in react-x11's `palette.js`). This is what keeps the two
+  schemes one design: `DARK` names 15 colours and nothing else, and
+  `hoverText`, `accentText`, `surfaceActive` and the rest are measured from
+  them. It is also the fix for an ink that has to read on a fill — a `solid`
+  `<Button>` ignores its `accent` for exactly that reason, since the accent is
+  the fill and `accentText` is what goes on it.
+- **A colour whose job changes with the scheme needs its own token.** `hot` is
+  the highlighter yellow and does not change; the ink on it used to be
+  `background`, which was only ever legible because the ground happened to be
+  near-black. That is `hotInk` now.
 
 ## react-x11 gotchas (hard-won)
 

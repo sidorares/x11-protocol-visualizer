@@ -16,7 +16,7 @@ import { T } from '../src/ui/controls.js';
 import { buildDemoStore, demoMessage } from '../fixtures/demo-session.js';
 import { Ground } from './ground.js';
 
-export default { title: 'Hex view', theme: 'dark', size: { width: 620, height: 420 } };
+export default { title: 'Hex view', theme: 'both', size: { width: 620, height: 420 } };
 
 const store = buildDemoStore();
 

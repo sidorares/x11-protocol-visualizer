@@ -16,11 +16,12 @@
 import type { ReactNode } from 'react';
 import { StatsPanel, ConsolePane } from '../src/ui/App.js';
 import { T } from '../src/ui/controls.js';
+import { Ground } from './ground.js';
 import { computeLints } from '../src/core/lints.js';
 import { CaptureStore } from '../src/core/store.js';
 import { buildDemoStore } from '../fixtures/demo-session.js';
 
-export default { title: 'Panels', theme: 'dark', size: { width: 480, height: 700 } };
+export default { title: 'Panels', theme: 'both', size: { width: 480, height: 700 } };
 
 const store = buildDemoStore();
 const lints = computeLints(store.messages);
@@ -28,12 +29,17 @@ const empty = new CaptureStore();
 
 function Pane({ children, height = 660 }: { children: ReactNode; height?: number }) {
   return (
-    <box style={{
-      flexDirection: 'column', width: 460, height,
-      backgroundColor: T.surface, borderColor: T.border, borderWidth: 1,
-    }}>
-      {children}
-    </box>
+    // `<Ground>` for the provider, not for the ground — see the note in
+    // `detail.story.tsx`. The pane paints its own `surface`; what it needs
+    // from here is the palette its `'$token'`s resolve against.
+    <Ground padding={0} gap={0}>
+      <box style={{
+        flexDirection: 'column', width: 460, height,
+        backgroundColor: T.surface, borderColor: T.border, borderWidth: 1,
+      }}>
+        {children}
+      </box>
+    </Ground>
   );
 }
 
