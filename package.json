@@ -15,7 +15,9 @@
     "build": "tsc -p tsconfig.json",
     "gen:protocol": "tsx scripts/gen-protocol.ts",
     "check:generated": "tsx scripts/check-generated.ts",
-    "screenshot": "tsx scripts/screenshot.tsx"
+    "screenshot": "tsx scripts/screenshot.tsx",
+    "workbench": "x11-workbench dev",
+    "workbench:ls": "x11-workbench ls"
   },
   "keywords": [
     "x11",
@@ -34,17 +36,19 @@
   },
   "optionalDependencies": {
     "@lezer/highlight": "^1.2.0",
-    "@react-x11/components": "^0.4.0",
-    "react-x11": "^2.1.4"
+    "@react-x11/components": "^0.6.0",
+    "react-x11": "^2.9.1"
   },
   "comments": {
     "node-x11": "The core decoder deliberately embeds its own span-aware reader with tables derived from node-x11's opcode values (see docs/decoder-and-state.md §2.1), so node-x11 is not a direct runtime dep. The npm package node-x11@1.0.4 also fails its native node-gyp build on Node 26; the current pure-JS node-x11 arrives transitively via react-x11 for the UI.",
-    "@react-x11/components": "Both UI packages are now published to npm (react-x11@2.0.0, @react-x11/components@0.3.0) with aligned versions: components declares peer react-x11@^2.0.0, which the semver range resolves. 0.3.0 adds optional node-pty/@lydell/node-pty peers for its new terminal component; we don't use it, so they stay uninstalled. 0.4.0 adds the composable <Tabs> family (react-x11-components#50), which the UI now uses instead of core's <Tabs>. @lezer/highlight is an optional peer the <Code> component uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
-    "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can't load."
+    "@react-x11/components": "Both UI packages come from npm (react-x11@2.9.1, @react-x11/components@0.6.0) and the peer ranges line up: components declares peer react-x11@^2.8.3, which our range resolves. The UI uses the composable <Tabs> family added in 0.4.0 (react-x11-components#50), plus <Table>, <Tree>, <Code> and <CodeEditor>. 0.6.0's breaking change is in its markdown/MDX surface, which we do not import; the optional node-pty/@lydell/node-pty peers belong to its terminal component and stay uninstalled. @lezer/highlight is an optional peer <Code> uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
+    "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can't load.",
+    "@react-x11/workbench": "The component workshop (Storybook, for a toolkit with no browser): `npm run workbench` mounts the UI's own components from `stories/*.story.tsx` in isolation. A devDependency, not an optional one — it is never imported by anything the proxy ships, and `x11-workbench dev` needs a display. The stories import react-x11 through `src/ui`, so they are excluded from the core typecheck for the same reason `src/ui` is."
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
     "@babel/plugin-transform-react-jsx": "^8.0.1",
+    "@react-x11/workbench": "^0.2.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "hot-module-replacement": "^4.0.1",

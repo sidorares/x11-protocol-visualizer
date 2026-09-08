@@ -15,6 +15,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "test", "bin"],
+  "include": ["src", "test", "bin", "fixtures"],
   "exclude": ["src/ui"]
 }

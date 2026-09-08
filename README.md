@@ -269,6 +269,8 @@ npm run typecheck
 npm run gen:protocol   # regenerate protocol tables from an xcbproto XML corpus
 npm run check:generated
 npm run screenshot     # regenerate docs/img/*.png headlessly (no X server)
+npm run workbench      # the component workshop (needs a display)
+npm run workbench:ls   # what it discovered, without a display
 ```
 
 The core (`src/core`) is pure Node + TypeScript with **no runtime dependencies**
@@ -296,9 +298,10 @@ react-x11's (its `npm run screenshots`), adopted wholesale; it replaces an
 `xwd` recipe that needed a live server and broke on a multi-monitor desktop,
 where `GetImage` cannot read a root window that is mostly off-screen.
 
-The traffic in the picture is **synthesized, not recorded**: hand-built X11
-bytes fed through the shipping `ConnectionCapture`, so every field, span, link
-and resource shown was decoded by the real decoder. A recording would have been
+The traffic in the picture is **synthesized, not recorded**: `fixtures/demo-session.ts`
+is hand-built X11 bytes fed through the shipping `ConnectionCapture`, so every
+field, span, link and resource shown was decoded by the real decoder — and the
+workbench stories mount their panels over that same session. A recording would have been
 both non-deterministic and unpublishable — captures carry window titles,
 clipboard contents and keystrokes, which is why `*.x11cap` is gitignored.
 
@@ -309,6 +312,30 @@ the fonts (family resolution otherwise shells out to `fc-match`), and
 react-x11's palette, which follows the desktop unless told not to. Run it on
 a machine with Arial (macOS) or Liberation/DejaVu (Linux) installed.
 
+## The component workshop
+
+The UI's own components have stories, mounted in isolation by
+[`@react-x11/workbench`](https://github.com/sidorares/react-x11-workbench) —
+which is what Storybook is for a toolkit with no browser to put an iframe in:
+
+```bash
+PATH=/opt/X11/bin:$PATH npm run workbench    # needs a display
+npm run workbench:ls                         # what it found; --json for the model
+```
+
+`stories/*.story.tsx` cover both halves of the UI: the control set and the icons
+(`Controls`, `Icons`), and the app's composed panels — the toolbar, the filter
+bar, the intercept bar, the detail pane with its field↔hex highlighting, the
+hex block, the statistics and console panes, and the "Break on…" dialog. They
+mount the **real** components from `src/ui`, over the same synthesized session
+the screenshot uses (`fixtures/demo-session.ts`), so a story shows what the app
+shows rather than a re-implementation that drifts from it. Selecting a file
+previews every state at once; a story with `args` gets a knobs panel.
+
+x11vis paints its own fixed dark palette, so the stories declare `theme:
+'dark'` and sit on the app's ground — flip the workshop to Dark to see a panel
+exactly as the app ships it.
+
 ## Layout
 
 ```
@@ -318,6 +345,9 @@ src/core/protocol/extensions/   one file per extension (render.ts, xinput.ts, �
 src/ui/                  react-x11 application (Table / Tree / Code / hex)
 src/cli.ts               entry point: proxy + UI-or-headless
 test/                    unit tests
+fixtures/                the synthesized session the stories and screenshot share
+stories/                 @react-x11/workbench stories for the UI's components
+workbench.config.ts      where the workshop looks for them
 docs/                    PRD + decoder/state design
 ```
 

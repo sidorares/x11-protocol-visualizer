@@ -47,9 +47,11 @@ const MAX_ROWS = 5000;
 /** Bytes shown in the hex block; the rest is summarised as a trailing count. */
 const HEX_MAX_BYTES = 256;
 /** …which is this many 16-byte rows, and so a known natural height. */
-// Not exported: nothing imports it, and keeping App the module's only
-// runtime export makes it a self-accepting Fast Refresh boundary, so edits
-// here hot-apply instead of requiring a restart.
+// Not exported, and neither is anything else here that is not a component:
+// a module whose exports are *all* components is a self-accepting Fast
+// Refresh boundary, so edits hot-apply instead of requiring a restart. The
+// panels below are exported (the workbench stories mount them one at a
+// time), which keeps that property; a constant would not.
 const HEX_MAX_ROWS = HEX_MAX_BYTES / 16;
 const FILTER_CATS: Category[] = ['request', 'reply', 'event', 'error'];
 // Kind is always shown (it is the classifier); the rest are toggleable.
@@ -430,7 +432,7 @@ export function App({ store, network, onQuit, onSave, interceptor }: AppProps) {
   );
 }
 
-function Toolbar(props: {
+export function Toolbar(props: {
   total: number; shown: number; counts: Record<string, number>; conns: number; paused: boolean;
   mutedCats: ReadonlySet<Category>; onToggleCat: (c: Category) => void;
   query: string; onQuery: (s: string) => void; profileId: string; onProfile: (id: string) => void;
@@ -466,7 +468,7 @@ function Toolbar(props: {
  * react-x11 client: where is this app spending the protocol? Hotspots first,
  * because a count nobody acts on is just a number.
  */
-function StatsPanel({ messages, onJump, lints, onFindUsages }: {
+export function StatsPanel({ messages, onJump, lints, onFindUsages }: {
   messages: readonly CapturedMessage[]; onJump: (id: number) => void;
   lints: ReturnType<typeof computeLints>; onFindUsages: (xid: number) => void;
 }) {
@@ -563,7 +565,7 @@ function StatsPanel({ messages, onJump, lints, onFindUsages }: {
   );
 }
 
-function FilterBar(props: {
+export function FilterBar(props: {
   solo: string | null; mutedCats: ReadonlySet<Category>; mutedNames: ReadonlySet<string>; query: string;
   xidFilter: number | null;
   onClearSolo: () => void; onToggleCat: (c: Category) => void; onToggleName: (n: string) => void;
@@ -607,7 +609,7 @@ function FilterBar(props: {
  * hunting through a menu while an app hangs is the wrong experience. The rules
  * themselves render as chips underneath, like the filter chips.
  */
-function InterceptBar({ rules, held, queued, onToggle, onRemove, onStep, onContinue, onDropHead, onInspect, onAdd }: {
+export function InterceptBar({ rules, held, queued, onToggle, onRemove, onStep, onContinue, onDropHead, onInspect, onAdd }: {
   rules: readonly InterceptRule[];
   held: readonly HeldMessage[];
   queued: number;
@@ -677,7 +679,7 @@ function InterceptBar({ rules, held, queued, onToggle, onRemove, onStep, onConti
   );
 }
 
-function ConsolePane({ store }: { store: CaptureStore }) {
+export function ConsolePane({ store }: { store: CaptureStore }) {
   const entries = store.console.slice(-200);
   return (
     <box style={{ flexDirection: 'column', flexGrow: 1, backgroundColor: C.panelAlt, borderColor: C.border, borderWidth: 1, padding: 6, overflow: 'scroll' }}>
@@ -693,7 +695,7 @@ interface FieldItem {
   raw?: string; type?: string;
 }
 
-function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, onPickField, onFindUsages, lints }: {
+export function Detail({ message, activeSpan, onPickSpan, onJump, getMessage, onPickField, onFindUsages, lints }: {
   message: CapturedMessage | undefined; activeSpan: Span | null;
   onPickSpan: (s: Span | null) => void; onJump: (id: number) => void;
   getMessage: (id: number) => CapturedMessage | undefined;
@@ -984,7 +986,7 @@ function CreatorPreview({ creator }: { creator: CapturedMessage }) {
   );
 }
 
-function HexView({ bytes, activeSpan }: { bytes: Buffer; activeSpan: Span | null }) {
+export function HexView({ bytes, activeSpan }: { bytes: Buffer; activeSpan: Span | null }) {
   const limit = Math.min(bytes.length, HEX_MAX_BYTES);
   const inSpan = (off: number) => activeSpan != null && off >= activeSpan.off && off < activeSpan.off + activeSpan.len;
   const rows = [];

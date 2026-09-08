@@ -60,3 +60,22 @@ jobs:
 
       - name: Sanity-check the output
         run: npm run check:generated
+
+  stories:
+    name: the workbench still finds the stories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+
+      # The stories mount the real UI components, so this is the one job that
+      # installs the optional react-x11 stack. It still needs no display:
+      # `ls` imports every story module and exits non-zero if one throws,
+      # which is what catches a story left behind by a rename in src/ui.
+      - run: npm ci
+
+      - name: Discover
+        run: npm run workbench:ls

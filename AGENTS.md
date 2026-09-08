@@ -79,6 +79,10 @@ scripts/gen-protocol.ts   the generator (npm run gen:protocol)
     extensions/           one file per extension + registry
 src/ui/                   react-x11 app (excluded from the core typecheck)
 src/cli.ts                entry: proxy + UI-or-headless
+fixtures/demo-session.ts  a synthesized session, decoded by the real decoder —
+                          shared by the screenshot script and the stories
+stories/*.story.tsx       @react-x11/workbench stories for the UI's components
+workbench.config.ts       where the workshop looks for them
 ```
 
 **Load-bearing invariants — do not break these:**
@@ -128,6 +132,9 @@ src/cli.ts                entry: proxy + UI-or-headless
 ## Working practice
 
 - `npm test` — core tests, no X server needed. `npm run typecheck`.
+- `npm run workbench` — the component workshop (needs a display);
+  `npm run workbench:ls` says what it discovered without one. See "The
+  workbench" below.
 - The core is tested independently of the UI; `src/ui` is excluded from
   `tsconfig` because it depends on the optional react-x11 stack.
 - **Verify on real traffic, not just tests.** Every feature here has been
@@ -147,7 +154,41 @@ than hand-rolling boxes, or the interface drifts back to looking assembled.
 Icons come from `lucide-static` through `src/ui/icons.tsx`, which renders them
 via react-x11's `<svg source>`.
 
+`App.tsx` exports its panels (`Toolbar`, `FilterBar`, `InterceptBar`, `Detail`,
+`HexView`, `StatsPanel`, `ConsolePane`) so the workbench stories can mount the
+real thing rather than a copy. Keep every export in that module a *component*:
+a module whose exports are all components is a self-accepting Fast Refresh
+boundary, and exporting a constant from it silently costs the hot-reload loop.
+
 **Run the app with `PATH=/opt/X11/bin:$PATH`** so it picks up the right fonts.
+
+## The workbench
+
+`npm run workbench` (`x11-workbench dev`, needs a display) mounts the UI's
+components in isolation — [@react-x11/workbench](https://github.com/sidorares/react-x11-workbench),
+which is what Storybook is for a toolkit with no browser to put an iframe in.
+`npm run workbench:ls` lists what it discovered and needs no display, which
+makes it the cheap check after touching a story.
+
+- **Stories mount the real components.** `stories/*.story.tsx` import from
+  `src/ui`, over the same synthesized capture the screenshot uses
+  (`fixtures/demo-session.ts`). A story that re-implements a panel is a second
+  source of truth that will drift; if a panel cannot be mounted on its own,
+  export it rather than copying it.
+- **A story is a component, and a file is a group.** Named exports are stories;
+  selecting the file previews all of them at once. `story(render, { args })`
+  adds a knobs panel — reach for it when the state space is worth sweeping, not
+  by default.
+- **Declare `theme: 'dark'`.** x11vis's palette is fixed and dark, but the core
+  widgets a control wraps (Button, Select, Tabs) follow the workshop's scheme.
+  `stories/ground.tsx` puts the app's own ground under a story, for the same
+  reason the screenshot pins `colorScheme: 'dark'`.
+- **A whole-window story is out of scope by design** — the workshop previews
+  components, and a story whose root is a `<window>` throws. `<BreakOnDialog>`
+  is the edge case that works: core's `<Dialog>` is a managed popup, so it
+  opens beside the workshop rather than inside the frame.
+- Stories are excluded from the core typecheck, like `src/ui` itself. The
+  fixture is not — it is core-only code, and `tsconfig` includes it.
 
 ## Screenshots
 
@@ -178,12 +219,15 @@ per run makes the diff useless as a signal that something visibly changed:
   fixed, but core widgets (buttons, menu bar) follow the desktop otherwise, and
   would come out light inside x11vis's dark shell on a light desktop.
 
-The traffic is **synthesized, not recorded**: hand-built X11 bytes fed through
-the real `ConnectionCapture`, so the decoding on show is genuine. Do not swap in
-a real capture — `*.x11cap` is gitignored for privacy, and a recording would not
-be reproducible. When adding messages to the session, note that reply/event/
-error sequence numbers are derived by the `req()`/`seq()` counter rather than
-hand-written, so inserting a request in the middle stays correct.
+The traffic is **synthesized, not recorded**: `fixtures/demo-session.ts` is
+hand-built X11 bytes fed through the real `ConnectionCapture`, so the decoding
+on show is genuine. Do not swap in a real capture — `*.x11cap` is gitignored for
+privacy, and a recording would not be reproducible. When adding messages to the
+session, note that reply/event/error sequence numbers are derived by the
+`req()`/`seq()` counter rather than hand-written, so inserting a request in the
+middle stays correct — and that the workbench stories read the same session, so
+a message removed from it takes a story's `demoMessage()` lookup with it (which
+throws, by design, naming what the session does contain).
 
 ## react-x11 gotchas (hard-won)
 
