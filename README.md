@@ -203,13 +203,37 @@ that point and says so rather than guessing past it.
 
 ## Install
 
+Run it without installing anything:
+
+```bash
+npx x11-protocol-visualizer --port 6001
+```
+
+Or put `x11vis` on your `PATH`:
+
+```bash
+npm install -g x11-protocol-visualizer
+```
+
+Headless-only, skipping the 61 MB icon set and the UI stack:
+
+```bash
+npm install -g --omit=optional x11-protocol-visualizer
+```
+
+The published package ships compiled JavaScript in `dist/` and needs no
+TypeScript toolchain at runtime.
+
+### From a checkout
+
 ```bash
 npm install
 ```
 
 The **proxy/decoder core has no runtime dependencies** and always installs. The
-UI stack (`react-x11@^2`, `@react-x11/components@^0.2`) is in
-`optionalDependencies`, resolved from npm as ordinary semver ranges.
+UI stack (`react-x11@^2.9`, `@react-x11/components@^0.7`, plus `react` and
+`lucide-static`, which only `src/ui` imports) is in `optionalDependencies`,
+resolved from npm as ordinary semver ranges.
 
 Both packages used to be tracked from their GitHub default branches, which cost
 this repo two workarounds — a `legacy-peer-deps=true` `.npmrc` to paper over a
