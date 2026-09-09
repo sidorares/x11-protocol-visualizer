@@ -1,0 +1,28 @@
+{
+  // Emit config. The core typecheck lives in `tsconfig.json` (which excludes
+  // `src/ui` and sets `noEmit`); this one compiles *everything* under `src`,
+  // UI included, into `dist/` for publishing.
+  //
+  // `noCheck` is why the two can differ: `src/ui` has never been typechecked —
+  // it targets react-x11's JSX namespace, not React's, so every `<box>` reads
+  // as an unknown intrinsic under the core config. Emitting it without
+  // checking keeps the shipped UI byte-identical to what `tsx` runs in dev,
+  // and leaves `npm run typecheck` as the real gate on the core.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "noCheck": true,
+    // Incompatible with emit, and unused by `src` — only the tests and
+    // `scripts/screenshot.tsx` import through a `.ts`/`.tsx` specifier.
+    "allowImportingTsExtensions": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    // Self-contained maps: the tarball ships no `src/`, so a plain map would
+    // point at files that are not there. Inlining the sources is what makes a
+    // stack trace out of a published install land on real TypeScript.
+    "inlineSources": true
+  },
+  "include": ["src"],
+  "exclude": []
+}

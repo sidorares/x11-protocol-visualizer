@@ -36,6 +36,14 @@ jobs:
       - name: Test
         run: npm test
 
+      # What `prepack` runs at publish time. It emits `src/ui` too, which this
+      # job has no optional deps for — `tsconfig.build.json` sets `noCheck`, so
+      # the emit is syntactic and does not need react-x11 to be installed.
+      # Publishing 0.1.0 without this step shipped a package that could not
+      # start: `bin/` pointed at a `tsx` no consumer install has.
+      - name: Build
+        run: npm run build
+
   generator:
     name: protocol generator still runs
     runs-on: ubuntu-latest

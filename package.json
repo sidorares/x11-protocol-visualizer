@@ -1,24 +1,7 @@
 {
   "name": "x11-protocol-visualizer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "X11 MITM proxy with live protocol visualization — inspect, link and throttle X11 traffic",
-  "type": "module",
-  "bin": {
-    "x11vis": "bin/x11vis.mjs"
-  },
-  "scripts": {
-    "start": "tsx src/cli.ts",
-    "dev": "tsx src/cli.ts",
-    "dev:hot": "node --import tsx --import ./scripts/hot-register.mjs src/cli.ts",
-    "test": "node --import tsx --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json",
-    "gen:protocol": "tsx scripts/gen-protocol.ts",
-    "check:generated": "tsx scripts/check-generated.ts",
-    "screenshot": "tsx scripts/screenshot.tsx",
-    "workbench": "x11-workbench dev",
-    "workbench:ls": "x11-workbench ls"
-  },
   "keywords": [
     "x11",
     "protocol",
@@ -28,22 +11,57 @@
     "debugging",
     "xquartz"
   ],
-  "author": "",
+  "homepage": "https://github.com/sidorares/x11-protocol-visualizer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sidorares/x11-protocol-visualizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sidorares/x11-protocol-visualizer/issues"
+  },
   "license": "ISC",
-  "dependencies": {
-    "lucide-static": "^1.33.0",
-    "react": "^19.0.0"
+  "author": "Andrey Sidorov <andrey.sidorov@gmail.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "x11vis": "bin/x11vis.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "docs/PRD.md",
+    "docs/decoder-and-state.md"
+  ],
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "dev": "tsx src/cli.ts",
+    "dev:hot": "node --import tsx --import ./scripts/hot-register.mjs src/cli.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "gen:protocol": "tsx scripts/gen-protocol.ts",
+    "check:generated": "tsx scripts/check-generated.ts",
+    "screenshot": "tsx scripts/screenshot.tsx",
+    "workbench": "x11-workbench dev",
+    "workbench:ls": "x11-workbench ls",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
   "optionalDependencies": {
     "@lezer/highlight": "^1.2.0",
     "@react-x11/components": "^0.7.0",
+    "lucide-static": "^1.33.0",
+    "react": "^19.0.0",
     "react-x11": "^2.9.2"
   },
   "comments": {
     "node-x11": "The core decoder deliberately embeds its own span-aware reader with tables derived from node-x11's opcode values (see docs/decoder-and-state.md §2.1), so node-x11 is not a direct runtime dep. The npm package node-x11@1.0.4 also fails its native node-gyp build on Node 26; the current pure-JS node-x11 arrives transitively via react-x11 for the UI.",
-    "@react-x11/components": "Both UI packages come from npm (react-x11@2.9.2, @react-x11/components@0.7.0) and the peer ranges line up: components declares peer react-x11@^2.9.1, which our range resolves. The UI uses the composable <Tabs> family added in 0.4.0 (react-x11-components#50), plus <Table>, <Tree>, <Code> and <CodeEditor>. 0.7.0's breaking change is the removal of <DesktopCalendar>, which we do not import \u2014 the six entry points we do are code, code-editor, code-language, table, tabs and tree. Its visible change here is that <Table> and <Tree> now inset and round the selection wash, so a selected row reads as a pill on the list rather than a band across it; both committed screenshots moved with it. react-x11 2.9.2 is a fix for the native (Cocoa) <Button> and <Select> coming apart when a caller sizes them (react-x11#510) \u2014 which this app does, and only started to matter once the cocoa backend landed. The optional node-pty/@lydell/node-pty peers belong to the terminal component and stay uninstalled. @lezer/highlight is an optional peer <Code> uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
-    "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can't load.",
-    "@react-x11/workbench": "The component workshop (Storybook, for a toolkit with no browser): `npm run workbench` mounts the UI's own components from `stories/*.story.tsx` in isolation. A devDependency, not an optional one — it is never imported by anything the proxy ships, and `x11-workbench dev` needs a display. The stories import react-x11 through `src/ui`, so they are excluded from the core typecheck for the same reason `src/ui` is."
+    "@react-x11/components": "Both UI packages come from npm (react-x11@2.9.2, @react-x11/components@0.7.0) and the peer ranges line up: components declares peer react-x11@^2.9.1, which our range resolves. The UI uses the composable <Tabs> family added in 0.4.0 (react-x11-components#50), plus <Table>, <Tree>, <Code> and <CodeEditor>. 0.7.0's breaking change is the removal of <DesktopCalendar>, which we do not import — the six entry points we do are code, code-editor, code-language, table, tabs and tree. Its visible change here is that <Table> and <Tree> now inset and round the selection wash, so a selected row reads as a pill on the list rather than a band across it; both committed screenshots moved with it. react-x11 2.9.2 is a fix for the native (Cocoa) <Button> and <Select> coming apart when a caller sizes them (react-x11#510) — which this app does, and only started to matter once the cocoa backend landed. The optional node-pty/@lydell/node-pty peers belong to the terminal component and stay uninstalled. @lezer/highlight is an optional peer <Code> uses for syntax highlighting; react-x11's remaining peers (@babel/core, react-refresh, hot-module-replacement) are optional and only needed for its dev-time HMR path.",
+    "ui-optional": "The react-x11 UI stack is in optionalDependencies: the proxy/decoder core installs and runs without it, and the CLI falls back to a headless console renderer (--record / --no-ui) when the UI can’t load. react and lucide-static are in there for the same reason — both are imported only by `src/ui`, and lucide-static is 61 MB of SVGs that a `--no-ui` user should not have to download. That leaves the core with no runtime dependencies at all, which is what the CI comment about the tests has always claimed.",
+    "@react-x11/workbench": "The component workshop (Storybook, for a toolkit with no browser): `npm run workbench` mounts the UI's own components from `stories/*.story.tsx` in isolation. A devDependency, not an optional one — it is never imported by anything the proxy ships, and `x11-workbench dev` needs a display. The stories import react-x11 through `src/ui`, so they are excluded from the core typecheck for the same reason `src/ui` is.",
+    "build": "The package ships compiled JS (`dist/`), not TypeScript. `bin/x11vis.mjs` imports `dist/cli.js`; `prepack` builds it, so `npm pack` and `npm publish` both produce a working tarball, and `prepublishOnly` gates a release on the typecheck and the test suite. Nothing at runtime needs tsx — 0.1.0 shipped raw `src/` behind a launcher that spawned `node_modules/.bin/tsx`, which no consumer install ever has."
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
